@@ -4,6 +4,8 @@ from fastapi import (
     File,
     HTTPException
 )
+import traceback
+
 
 from fastapi.responses import FileResponse,HTMLResponse
 
@@ -378,22 +380,19 @@ async def predict_document(
             extracted_text
         }
 
-    except Exception:
+    except Exception as e:
 
-        # ----------------------------------
-        # Remove uploaded file if processing
-        # fails
-        # ----------------------------------
+        print("\n========== PREDICT DOCUMENT ERROR ==========")
+        traceback.print_exc()
+        print("============================================")
 
-        if os.path.exists(
-            file_path
-        ):
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
-            os.remove(
-                file_path
-            )
-
-        raise
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )   
 
 
 # ==========================================
