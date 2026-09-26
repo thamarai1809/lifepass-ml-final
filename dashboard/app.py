@@ -511,13 +511,16 @@ if uploaded_file is not None:
             ):
 
                 response = requests.post(
-
+                print("API_URL =", API_URL)
+                print("Calling =", f"{API_URL}/predict-document")
+                response = requests.post(
                     f"{API_URL}/predict-document",
-
                     files=files,
-
                     timeout=120
-                )
+                )   
+
+                    
+                
 
 
             if response.status_code == 200:
