@@ -60,7 +60,12 @@ app = FastAPI(
     description="Document classification and management API",
     version="1.0"
 )
-
+@app.get("/debug-version")
+def debug_version():
+    return {
+        "version": "DEBUG-2026-09-26",
+        "message": "Newest API deployment"
+    }
 
 # ==========================================
 # Initialize Database
