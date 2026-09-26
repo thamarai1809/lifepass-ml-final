@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+pydantic
+scikit-learn
+joblib
+numpy
+pandas
+streamlit
+requests
+PyMuPDF
+pytesseract
+Pillow
+opencv-python-headless
+dateparser
+mlflow

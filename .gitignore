@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+mlruns/
+mlflow.db
+lifepass.db
+uploads/
+test_document.pdf
+test_eng_doc.pdf
+test_image.png
+test_tam_doc.pdf
