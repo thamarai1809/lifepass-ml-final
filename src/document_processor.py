@@ -5,8 +5,42 @@ import pytesseract
 
 from PIL import Image
 
-pytesseract.pytesseract.tesseract_cmd = r"D:\projects\tesseract.exe"
 
+# ==========================================
+# Tesseract Configuration
+# ==========================================
+
+# Windows:
+# Use a locally installed Tesseract executable if available.
+
+if os.name == "nt":
+
+    windows_tesseract_paths = [
+        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+        r"D:\projects\tesseract.exe",
+    ]
+
+    for path in windows_tesseract_paths:
+
+        if os.path.exists(path):
+
+            pytesseract.pytesseract.tesseract_cmd = path
+            break
+
+
+# Linux / Render:
+# Tesseract is installed by Dockerfile using:
+#
+# apt-get install -y --no-install-recommends tesseract-ocr
+#
+# Therefore Linux will use the tesseract executable
+# available in PATH.
+
+
+# ==========================================
+# Extract Text From Image
+# ==========================================
 
 def extract_text_from_image(image):
     """
@@ -22,6 +56,10 @@ def extract_text_from_image(image):
     return text
 
 
+# ==========================================
+# Extract Text From PDF
+# ==========================================
+
 def extract_text_from_pdf(pdf_path):
     """
     Extract text from both normal and scanned PDFs.
@@ -33,7 +71,10 @@ def extract_text_from_pdf(pdf_path):
 
     for page in document:
 
-        # Try extracting existing PDF text first
+        # ----------------------------------
+        # Try extracting existing PDF text
+        # ----------------------------------
+
         text = page.get_text()
 
         if text.strip():
@@ -42,7 +83,10 @@ def extract_text_from_pdf(pdf_path):
 
         else:
 
-            # Scanned PDF → render page as image
+            # ------------------------------
+            # Scanned PDF → render as image
+            # ------------------------------
+
             pix = page.get_pixmap(
                 matrix=fitz.Matrix(2, 2)
             )
@@ -53,31 +97,63 @@ def extract_text_from_pdf(pdf_path):
                 io.BytesIO(image_bytes)
             )
 
-            ocr_text = extract_text_from_image(image)
+            ocr_text = extract_text_from_image(
+                image
+            )
 
-            extracted_text += ocr_text + "\n"
+            extracted_text += (
+                ocr_text + "\n"
+            )
 
     document.close()
 
     return extracted_text
 
 
+# ==========================================
+# Extract Text From File
+# ==========================================
+
 def extract_text_from_file(file_path):
     """
     Automatically process JPG, PNG or PDF.
     """
 
-    extension = os.path.splitext(file_path)[1].lower()
+    extension = os.path.splitext(
+        file_path
+    )[1].lower()
 
-    if extension in [".jpg", ".jpeg", ".png"]:
+    # --------------------------------------
+    # Image
+    # --------------------------------------
 
-        image = Image.open(file_path)
+    if extension in [
+        ".jpg",
+        ".jpeg",
+        ".png"
+    ]:
 
-        return extract_text_from_image(image)
+        image = Image.open(
+            file_path
+        )
+
+        return extract_text_from_image(
+            image
+        )
+
+    # --------------------------------------
+    # PDF
+    # --------------------------------------
 
     elif extension == ".pdf":
 
-        return extract_text_from_pdf(file_path)
+        return extract_text_from_pdf(
+            file_path
+        )
+
+    # --------------------------------------
+    # Unsupported
+    # --------------------------------------
 
     else:
 
@@ -87,11 +163,20 @@ def extract_text_from_file(file_path):
         )
 
 
+# ==========================================
+# Local Test
+# ==========================================
+
 if __name__ == "__main__":
 
     file_path = "test_tam_doc.pdf"
 
-    text = extract_text_from_file(file_path)
+    text = extract_text_from_file(
+        file_path
+    )
 
-    print("\n========== EXTRACTED TEXT ==========")
+    print(
+        "\n========== EXTRACTED TEXT =========="
+    )
+
     print(text)
