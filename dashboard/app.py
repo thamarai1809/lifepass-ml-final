@@ -518,13 +518,20 @@ if uploaded_file is not None:
                 
                 print("API_URL =", API_URL)
                 print("Calling =", f"{API_URL}/predict-document")
+                st.write("DEBUG API:", API_URL)
+                st.write(
+                    "DEBUG ENDPOINT:",
+                    f"{API_URL}/predict-document"
+                )
+                
                 response = requests.post(
                     f"{API_URL}/predict-document",
                     files=files,
                     timeout=120
                 )   
 
-                    
+                print("STATUS =", response.status_code)
+                print("RESPONSE =", response.text) 
                 
 
 
