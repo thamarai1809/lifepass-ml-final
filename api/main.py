@@ -80,8 +80,9 @@ model = joblib.load(
 # Upload Directory
 # ==========================================
 
-UPLOAD_DIR = os.path.abspath(
-    "uploads"
+UPLOAD_DIR = os.getenv(
+    "LIFEPASS_UPLOAD_DIR",
+    "/tmp/lifepass/uploads"
 )
 
 os.makedirs(

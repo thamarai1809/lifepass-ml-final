@@ -6,7 +6,13 @@ import os
 # Database Configuration
 # ==========================================
 
-DATABASE = "/app/data/lifepass.db"
+DATABASE_DIR = os.getenv("LIFEPASS_DATA_DIR", "/tmp/lifepass")
+os.makedirs(DATABASE_DIR, exist_ok=True)
+
+DATABASE = os.path.join(
+    DATABASE_DIR,
+    "lifepass.db"
+)"
 
 
 # ==========================================
