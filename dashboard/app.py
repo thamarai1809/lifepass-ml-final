@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import os
 
+
 # =========================================================
 # CONFIGURATION
 # =========================================================
@@ -523,7 +524,7 @@ if uploaded_file is not None:
                     "DEBUG ENDPOINT:",
                     f"{API_URL}/predict-document"
                 )
-                
+
                 response = requests.post(
                     f"{API_URL}/predict-document",
                     files=files,
