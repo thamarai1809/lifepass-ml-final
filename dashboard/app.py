@@ -10,6 +10,8 @@ API_URL = os.getenv(
     "API_URL",
     "http://127.0.0.1:8000"
 )
+
+st.sidebar.write("API URL:", API_URL)
 print("========================================")
 print("RUNNING NEW DASHBOARD CODE")
 print("LIFEPASS API:", API_URL)
