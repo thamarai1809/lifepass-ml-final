@@ -1,22 +1,20 @@
-import streamlit as st
-import requests
 import os
+import requests
+import streamlit as st
 
 
 # =========================================================
 # CONFIGURATION
 # =========================================================
 
+# Production API is the default.
+# This means the dashboard will work even if API_URL
+# is not manually configured on Render.
+
 API_URL = os.getenv(
     "API_URL",
-    "http://127.0.0.1:8000"
-)
-
-st.sidebar.write("API URL:", API_URL)
-print("========================================")
-print("RUNNING NEW DASHBOARD CODE")
-print("LIFEPASS API:", API_URL)
-print("========================================")
+    "https://lifepasss-api.onrender.com"
+).rstrip("/")
 
 
 # =========================================================
@@ -39,10 +37,6 @@ st.markdown(
     """
     <style>
 
-    /* =====================================================
-       MAIN APPLICATION
-       ===================================================== */
-
     .stApp {
         background-color: #f5f7fb;
     }
@@ -52,14 +46,6 @@ st.markdown(
         padding-top: 2rem;
         padding-bottom: 4rem;
     }
-
-
-    /* =====================================================
-       TEXT FONT
-       IMPORTANT:
-       Do NOT use .stApp * because that breaks
-       Streamlit's internal icon fonts.
-       ===================================================== */
 
     .stApp p,
     .stApp label,
@@ -72,296 +58,138 @@ st.markdown(
     .stApp button,
     .stApp input,
     .stApp textarea {
-
         font-family:
             "Trebuchet MS",
             "Segoe UI",
             Arial,
             sans-serif;
-
     }
-
-
-    /* =====================================================
-       MAIN TITLE
-       ===================================================== */
 
     .stApp h1 {
-
         font-size: 48px !important;
-
         font-weight: 800 !important;
-
-        letter-spacing: -1px;
-
         color: #172033 !important;
-
-        line-height: 1.2 !important;
-
-        margin-bottom: 0.5rem !important;
-
     }
-
-
-    /* =====================================================
-       SECTION HEADINGS
-       ===================================================== */
 
     .stApp h2 {
-
         font-size: 30px !important;
-
         font-weight: 750 !important;
-
         color: #172033 !important;
-
-        line-height: 1.3 !important;
-
     }
-
 
     .stApp h3 {
-
         font-size: 21px !important;
-
         font-weight: 700 !important;
-
         color: #172033 !important;
-
-        line-height: 1.4 !important;
-
     }
-
-
-    /* =====================================================
-       SIDEBAR
-       ===================================================== */
 
     section[data-testid="stSidebar"] {
-
         background-color: #172033;
-
     }
-
 
     section[data-testid="stSidebar"] p {
-
         color: #d1d5db !important;
-
     }
-
 
     section[data-testid="stSidebar"] label {
-
         color: #ffffff !important;
-
     }
-
 
     section[data-testid="stSidebar"] h1,
     section[data-testid="stSidebar"] h2,
     section[data-testid="stSidebar"] h3 {
-
         color: #ffffff !important;
-
     }
-
-
-    /* Sidebar LifePass title */
 
     section[data-testid="stSidebar"] h1 {
-
         font-size: 38px !important;
-
         font-weight: 800 !important;
-
-        line-height: 1.2 !important;
-
     }
-
-
-    /* =====================================================
-       FILE UPLOADER
-       ===================================================== */
 
     section[data-testid="stSidebar"]
     [data-testid="stFileUploaderDropzone"] {
-
         background-color: #ffffff !important;
-
         border: 1px solid #d1d5db !important;
-
         border-radius: 12px !important;
-
     }
-
 
     section[data-testid="stSidebar"]
     [data-testid="stFileUploaderDropzone"] p {
-
         color: #172033 !important;
-
-        font-family:
-            "Trebuchet MS",
-            "Segoe UI",
-            Arial,
-            sans-serif !important;
-
     }
-
 
     section[data-testid="stSidebar"]
     [data-testid="stFileUploaderDropzone"] span {
-
         color: #172033 !important;
-
     }
-
-
-    /* Upload button */
 
     section[data-testid="stSidebar"]
     [data-testid="stFileUploaderDropzone"] button {
-
         background-color: #f3f4f6 !important;
-
         color: #172033 !important;
-
         border: 1px solid #d1d5db !important;
-
         border-radius: 8px !important;
-
     }
-
-
-    /* =====================================================
-       SIDEBAR PROCESS BUTTON
-       ===================================================== */
 
     section[data-testid="stSidebar"]
     .stButton > button {
-
         background-color: #ffffff !important;
-
         color: #172033 !important;
-
         border-radius: 9px !important;
-
         font-weight: 700 !important;
-
     }
 
-
-    /* =====================================================
-       METRIC CARDS
-       ===================================================== */
-
     div[data-testid="stMetric"] {
-
         background-color: #ffffff;
-
         border: 1px solid #e5e7eb;
-
         border-radius: 15px;
-
         padding: 17px;
-
         box-shadow:
             0 3px 12px
             rgba(0, 0, 0, 0.05);
-
     }
-
 
     div[data-testid="stMetric"] label {
-
         color: #6b7280 !important;
-
     }
-
 
     div[data-testid="stMetric"]
     [data-testid="stMetricValue"] {
-
         color: #172033 !important;
-
         font-size: 28px;
-
         font-weight: 800;
-
     }
 
-
-    /* =====================================================
-       DOCUMENT CARDS
-       ===================================================== */
-
     div[data-testid="stVerticalBlockBorderWrapper"] {
-
         background-color: #ffffff;
-
         border-radius: 16px;
-
         border: 1px solid #e5e7eb;
-
         box-shadow:
             0 4px 15px
             rgba(0, 0, 0, 0.04);
-
     }
-
-
-    /* =====================================================
-       BUTTONS
-       ===================================================== */
 
     .stButton > button {
-
         border-radius: 9px !important;
-
         font-weight: 600 !important;
-
         min-height: 40px !important;
-
     }
-
 
     .stDownloadButton > button {
-
         border-radius: 9px !important;
-
         font-weight: 600 !important;
-
         min-height: 40px !important;
-
     }
-
-
-    /* =====================================================
-       EXPANDERS
-       ===================================================== */
 
     div[data-testid="stExpander"] {
-
         background-color: #ffffff;
-
         border-radius: 10px;
-
         border: 1px solid #d1d5db;
-
     }
 
-
-    /* =====================================================
-       TEXT AREA
-       ===================================================== */
-
     textarea {
-
         color: #172033 !important;
-
         background-color: #ffffff !important;
-
     }
 
     </style>
@@ -371,34 +199,138 @@ st.markdown(
 
 
 # =========================================================
-# HELPER FUNCTIONS
+# API HELPER FUNCTIONS
 # =========================================================
+
+def api_url(endpoint):
+    """
+    Build a clean API URL.
+    """
+    return f"{API_URL}/{endpoint.lstrip('/')}"
+
+
+def parse_json_response(response):
+    """
+    Safely parse JSON responses.
+    """
+    try:
+        return response.json()
+    except Exception:
+        return None
+
+
+def get_error_message(response):
+    """
+    Return a useful error even if Render returns HTML
+    instead of JSON.
+    """
+
+    data = parse_json_response(response)
+
+    if isinstance(data, dict):
+
+        if "detail" in data:
+            return str(data["detail"])
+
+        if "message" in data:
+            return str(data["message"])
+
+    text = response.text.strip()
+
+    if text:
+
+        if text.startswith("<!DOCTYPE") or text.startswith("<html"):
+            return (
+                f"Server returned HTTP {response.status_code}. "
+                "The frontend/API connection timed out or "
+                "the upstream service returned an HTML error page."
+            )
+
+        return text[:1000]
+
+    return (
+        f"API request failed with HTTP "
+        f"{response.status_code}."
+    )
+
 
 def get_documents():
 
     try:
 
         response = requests.get(
-            f"{API_URL}/documents",
-            timeout=10
+            api_url("/documents"),
+            timeout=30
         )
 
         if response.status_code == 200:
 
-            return response.json().get(
-                "documents",
-                []
+            data = parse_json_response(
+                response
             )
+
+            if isinstance(data, dict):
+
+                return data.get(
+                    "documents",
+                    []
+                )
 
         return []
 
-    except Exception as e:
+    except requests.exceptions.Timeout:
 
         st.warning(
-            f"Could not connect to API: {e}"
+            "The document service is taking too long to respond."
         )
 
         return []
+
+    except requests.exceptions.RequestException as e:
+
+        st.warning(
+            f"Could not connect to LifePass API: {e}"
+        )
+
+        return []
+
+
+# =========================================================
+# STATUS HELPERS
+# =========================================================
+
+def get_status_value(document):
+
+    status = document.get(
+        "renewal_status",
+        "unknown"
+    )
+
+    if isinstance(status, dict):
+
+        return status.get(
+            "status",
+            "unknown"
+        )
+
+    return status or "unknown"
+
+
+def get_days_remaining(document):
+
+    status = document.get(
+        "renewal_status"
+    )
+
+    if isinstance(status, dict):
+
+        return status.get(
+            "days_remaining"
+        )
+
+    return document.get(
+        "days_remaining"
+    )
 
 
 def status_label(status):
@@ -416,7 +348,6 @@ def status_label(status):
         "expired": "Expired",
 
         "unknown": "Unknown"
-
     }
 
     return labels.get(
@@ -440,7 +371,6 @@ def status_icon(status):
         "expired": "🔴",
 
         "unknown": "⚪"
-
     }
 
     return icons.get(
@@ -453,7 +383,9 @@ def status_icon(status):
 # SIDEBAR
 # =========================================================
 
-st.sidebar.title("LifePass")
+st.sidebar.title(
+    "LifePass"
+)
 
 st.sidebar.caption(
     "Your documents. Your control."
@@ -464,7 +396,6 @@ st.sidebar.divider()
 st.sidebar.subheader(
     "Upload Document"
 )
-
 
 uploaded_file = st.sidebar.file_uploader(
 
@@ -494,80 +425,161 @@ if uploaded_file is not None:
         use_container_width=True
     )
 
-
     if process_button:
+
+        file_bytes = uploaded_file.getvalue()
 
         files = {
 
             "file": (
-
                 uploaded_file.name,
-
-                uploaded_file.getvalue(),
-
+                file_bytes,
                 uploaded_file.type
             )
         }
 
+        endpoint = api_url(
+            "/predict-document"
+        )
+
+        # -------------------------------------------------
+        # Upload status
+        # -------------------------------------------------
+
+        st.info(
+            "Uploading document to LifePass API..."
+        )
+
+        progress_message = st.empty()
 
         try:
 
             with st.spinner(
-                "Analyzing your document..."
+                "Analyzing your document. "
+                "OCR and document processing may take up to "
+                "a couple of minutes..."
             ):
 
-                
-                print("API_URL =", API_URL)
-                print("Calling =", f"{API_URL}/predict-document")
-                st.write("DEBUG API:", API_URL)
-                st.write(
-                    "DEBUG ENDPOINT:",
-                    f"{API_URL}/predict-document"
+                progress_message.info(
+                    "Sending document to the LifePass ML API..."
                 )
 
                 response = requests.post(
-                    f"{API_URL}/predict-document",
+
+                    endpoint,
+
                     files=files,
-                    timeout=120
-                )   
 
-                print("STATUS =", response.status_code)
-                print("RESPONSE =", response.text) 
-                
+                    # Production API was observed taking
+                    # approximately 61 seconds.
+                    timeout=300
+                )
 
+            progress_message.empty()
+
+            # -------------------------------------------------
+            # SUCCESS
+            # -------------------------------------------------
 
             if response.status_code == 200:
 
-                st.session_state[
-                    "upload_result"
-                ] = response.json()
-
-                st.sidebar.success(
-                    "Document processed successfully!"
+                result = parse_json_response(
+                    response
                 )
 
-                st.rerun()
+                if not isinstance(
+                    result,
+                    dict
+                ):
 
+                    st.error(
+                        "API returned an invalid JSON response."
+                    )
+
+                else:
+
+                    st.session_state[
+                        "upload_result"
+                    ] = result
+
+                    st.success(
+                        "Document processed successfully!"
+                    )
+
+                    st.rerun()
+
+            # -------------------------------------------------
+            # API ERROR
+            # -------------------------------------------------
 
             else:
 
-                st.sidebar.error(
-                    response.text
+                error_message = get_error_message(
+                    response
                 )
 
+                st.error(
+                    f"Document processing failed "
+                    f"(HTTP {response.status_code})"
+                )
+
+                st.code(
+                    error_message
+                )
+
+        except requests.exceptions.Timeout:
+
+            progress_message.empty()
+
+            st.error(
+                "The document processing request timed out. "
+                "The API may still be processing the document. "
+                "Please check the API directly before retrying."
+            )
+
+        except requests.exceptions.ConnectionError as e:
+
+            progress_message.empty()
+
+            st.error(
+                "Could not connect to the LifePass API."
+            )
+
+            st.code(
+                str(e)
+            )
+
+        except requests.exceptions.RequestException as e:
+
+            progress_message.empty()
+
+            st.error(
+                "An HTTP error occurred while contacting "
+                "the LifePass API."
+            )
+
+            st.code(
+                str(e)
+            )
 
         except Exception as e:
 
-            st.sidebar.error(
-                f"Could not connect to API: {e}"
+            progress_message.empty()
+
+            st.error(
+                "Unexpected dashboard error."
             )
+
+            st.exception(e)
 
 
 # =========================================================
 # MAIN HEADER
 # =========================================================
 
-st.title("LifePass")
+st.title(
+    "LifePass"
+)
 
 st.caption(
     "Secure Document & Renewal Management"
@@ -577,10 +589,65 @@ st.divider()
 
 
 # =========================================================
+# API STATUS
+# =========================================================
+
+with st.expander(
+    "System Status",
+    expanded=False
+):
+
+    st.write(
+        f"**API:** `{API_URL}`"
+    )
+
+    try:
+
+        health_response = requests.get(
+            api_url("/"),
+            timeout=15
+        )
+
+        if health_response.status_code == 200:
+
+            st.success(
+                "LifePass API is online."
+            )
+
+        else:
+
+            st.error(
+                f"LifePass API returned "
+                f"HTTP {health_response.status_code}"
+            )
+
+    except Exception as e:
+
+        st.error(
+            f"API health check failed: {e}"
+        )
+
+
+# =========================================================
 # LOAD DOCUMENTS
 # =========================================================
 
 documents = get_documents()
+
+
+# =========================================================
+# NORMALIZE DOCUMENT DATA
+# =========================================================
+
+for document in documents:
+
+    document["_status"] = get_status_value(
+        document
+    )
+
+    document["_days_remaining"] = (
+        get_days_remaining(document)
+    )
 
 
 # =========================================================
@@ -594,6 +661,7 @@ if "upload_result" in st.session_state:
     ]
 
     st.success(
+
         f"✓ {result.get('filename', 'Document')} "
         "has been processed and saved."
     )
@@ -607,13 +675,25 @@ if "upload_result" in st.session_state:
         with result_col1:
 
             st.write(
-                f"**Document Type:** "
-                f"{result.get('document_type', 'Unknown')}"
+                "**Document Type**"
             )
 
             st.write(
-                f"**Expiry Date:** "
-                f"{result.get('expiry_date', 'Not detected')}"
+                result.get(
+                    "document_type",
+                    "Unknown"
+                )
+            )
+
+            st.write(
+                "**Expiry Date**"
+            )
+
+            st.write(
+                result.get(
+                    "expiry_date",
+                    "Not detected"
+                )
             )
 
         with result_col2:
@@ -624,18 +704,107 @@ if "upload_result" in st.session_state:
             )
 
             st.write(
-                f"**Confidence:** "
-                f"{confidence * 100:.1f}%"
+                "**Confidence**"
             )
+
+            try:
+
+                st.write(
+                    f"{float(confidence) * 100:.1f}%"
+                )
+
+            except Exception:
+
+                st.write(
+                    confidence
+                )
 
             renewal = result.get(
                 "renewal_status",
                 {}
             )
 
+            if isinstance(
+                renewal,
+                dict
+            ):
+
+                renewal_status = renewal.get(
+                    "status",
+                    "unknown"
+                )
+
+                days_remaining = renewal.get(
+                    "days_remaining"
+                )
+
+            else:
+
+                renewal_status = renewal
+                days_remaining = None
+
             st.write(
-                f"**Status:** "
-                f"{status_label(renewal.get('status'))}"
+                "**Renewal Status**"
+            )
+
+            st.write(
+                f"{status_icon(renewal_status)} "
+                f"{status_label(renewal_status)}"
+            )
+
+            if days_remaining is not None:
+
+                st.write(
+                    f"**Days Remaining:** "
+                    f"{days_remaining}"
+                )
+
+        # ---------------------------------------------
+        # Extracted fields
+        # ---------------------------------------------
+
+        fields = result.get(
+            "fields",
+            {}
+        )
+
+        if fields:
+
+            st.divider()
+
+            st.subheader(
+                "Extracted Information"
+            )
+
+            for key, value in fields.items():
+
+                st.write(
+                    f"**{key.replace('_', ' ').title()}:** "
+                    f"{value}"
+                )
+
+        # ---------------------------------------------
+        # OCR text
+        # ---------------------------------------------
+
+        extracted_text = result.get(
+            "extracted_text",
+            ""
+        )
+
+        if extracted_text:
+
+            st.divider()
+
+            st.subheader(
+                "OCR Extracted Text"
+            )
+
+            st.text_area(
+                "Document text",
+                extracted_text,
+                height=250,
+                key="latest_ocr_text"
             )
 
 
@@ -643,43 +812,43 @@ if "upload_result" in st.session_state:
 # OVERVIEW
 # =========================================================
 
-st.header("Overview")
+st.header(
+    "Overview"
+)
 
-
-total = len(documents)
-
+total = len(
+    documents
+)
 
 valid = sum(
-    d.get("renewal_status") == "valid"
+    d.get("_status") == "valid"
     for d in documents
 )
-
 
 upcoming = sum(
-    d.get("renewal_status") == "upcoming"
+    d.get("_status") == "upcoming"
     for d in documents
 )
-
 
 due_soon = sum(
-    d.get("renewal_status") == "due_soon"
+    d.get("_status") == "due_soon"
     for d in documents
 )
-
 
 critical = sum(
-    d.get("renewal_status") == "critical"
+    d.get("_status") == "critical"
     for d in documents
 )
-
 
 expired = sum(
-    d.get("renewal_status") == "expired"
+    d.get("_status") == "expired"
     for d in documents
 )
 
 
-col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1, col2, col3, col4, col5, col6 = st.columns(
+    6
+)
 
 
 with col1:
@@ -740,7 +909,7 @@ alerts = [
 
     for document in documents
 
-    if document.get("renewal_status")
+    if document.get("_status")
 
     in [
         "expired",
@@ -752,7 +921,9 @@ alerts = [
 
 if alerts:
 
-    st.header("Renewal Alerts")
+    st.header(
+        "Renewal Alerts"
+    )
 
     for document in alerts:
 
@@ -766,25 +937,35 @@ if alerts:
         ) or "Not detected"
 
         status = document.get(
-            "renewal_status",
+            "_status",
             "unknown"
         )
 
         days = document.get(
-            "days_remaining"
+            "_days_remaining"
         )
 
-
         if status == "expired":
+
+            if days is not None:
+
+                message = (
+                    f"**{filename}** expired "
+                    f"{abs(days)} days ago."
+                )
+
+            else:
+
+                message = (
+                    f"**{filename}** has expired."
+                )
 
             st.error(
 
                 f"🔴 **Document Expired**\n\n"
-                f"**{filename}** expired "
-                f"{abs(days)} days ago.\n\n"
+                f"{message}\n\n"
                 f"Expiry date: **{expiry}**"
             )
-
 
         elif status == "critical":
 
@@ -795,7 +976,6 @@ if alerts:
                 f"in **{days} days**.\n\n"
                 f"Expiry date: **{expiry}**"
             )
-
 
         else:
 
@@ -812,12 +992,10 @@ if alerts:
 # MY DOCUMENTS
 # =========================================================
 
-st.header("My Documents")
+st.header(
+    "My Documents"
+)
 
-
-# =========================================================
-# SEARCH AND FILTERS
-# =========================================================
 
 search_col, type_col, status_col = st.columns(
     [2, 1, 1]
@@ -831,7 +1009,6 @@ with search_col:
         "Search documents",
 
         placeholder="Search by filename..."
-
     )
 
 
@@ -847,9 +1024,7 @@ with type_col:
             )
 
             for d in documents
-
         )
-
     )
 
     selected_type = st.selectbox(
@@ -857,7 +1032,6 @@ with type_col:
         "Document type",
 
         ["All"] + document_types
-
     )
 
 
@@ -868,14 +1042,12 @@ with status_col:
         set(
 
             d.get(
-                "renewal_status",
+                "_status",
                 "unknown"
             )
 
             for d in documents
-
         )
-
     )
 
     selected_status = st.selectbox(
@@ -883,7 +1055,6 @@ with status_col:
         "Status",
 
         ["All"] + statuses
-
     )
 
 
@@ -908,7 +1079,6 @@ if search_query:
             "filename",
             ""
         ).lower()
-
     ]
 
 
@@ -923,7 +1093,6 @@ if selected_type != "All":
         if d.get(
             "document_type"
         ) == selected_type
-
     ]
 
 
@@ -936,14 +1105,13 @@ if selected_status != "All":
         for d in filtered_documents
 
         if d.get(
-            "renewal_status"
+            "_status"
         ) == selected_status
-
     ]
 
 
 # =========================================================
-# NO DOCUMENTS
+# DOCUMENT LIST
 # =========================================================
 
 if not filtered_documents:
@@ -960,10 +1128,6 @@ if not filtered_documents:
             "You haven't uploaded any documents yet."
         )
 
-
-# =========================================================
-# DOCUMENT CARDS
-# =========================================================
 
 else:
 
@@ -993,36 +1157,33 @@ else:
         ) or "Not detected"
 
         status = document.get(
-            "renewal_status",
+            "_status",
             "unknown"
         )
 
         days = document.get(
-            "days_remaining"
+            "_days_remaining"
         )
 
         file_path = document.get(
             "file_path"
         )
 
-
-        # =========================================
-        # DOCUMENT CARD
-        # =========================================
-
-        with st.container(border=True):
+        with st.container(
+            border=True
+        ):
 
             st.subheader(
                 f"📄 {filename}"
             )
 
             st.caption(
-                f"{document_type.title()} document"
+                f"{str(document_type).title()} document"
             )
 
-
-            info1, info2, info3, info4 = st.columns(4)
-
+            info1, info2, info3, info4 = st.columns(
+                4
+            )
 
             with info1:
 
@@ -1034,7 +1195,6 @@ else:
                     f"**{expiry}**"
                 )
 
-
             with info2:
 
                 st.caption(
@@ -1045,19 +1205,27 @@ else:
                     f"**{days if days is not None else 'N/A'}**"
                 )
 
-                
-
-
             with info3:
 
                 st.caption(
                     "CONFIDENCE"
                 )
 
-                st.write(
-                    f"**{confidence * 100:.1f}%**"
-                )
+                try:
 
+                    confidence_display = (
+                        float(confidence) * 100
+                    )
+
+                    st.write(
+                        f"**{confidence_display:.1f}%**"
+                    )
+
+                except Exception:
+
+                    st.write(
+                        confidence
+                    )
 
             with info4:
 
@@ -1069,35 +1237,21 @@ else:
 
                     f"{status_icon(status)} "
                     f"**{status_label(status)}**"
-
                 )
 
-
             st.divider()
-
-
-            # =====================================
-            # ACTION BUTTONS
-            # =====================================
 
             view_col, download_col, delete_col, spacer = st.columns(
                 [1, 1, 1, 5]
             )
 
-
-            file_url = (
-
-                f"{API_URL}"
-                f"/documents/"
-                f"{document_id}"
-                f"/file"
-
+            file_url = api_url(
+                f"/documents/{document_id}/file"
             )
 
-
-            # =====================================
+            # -----------------------------------------
             # VIEW
-            # =====================================
+            # -----------------------------------------
 
             with view_col:
 
@@ -1110,7 +1264,6 @@ else:
                         file_url,
 
                         use_container_width=True
-
                     )
 
                 else:
@@ -1121,19 +1274,14 @@ else:
 
                         disabled=True,
 
-                        key=(
-                            f"view_"
-                            f"{document_id}"
-                        ),
+                        key=f"view_{document_id}",
 
                         use_container_width=True
-
                     )
 
-
-            # =====================================
+            # -----------------------------------------
             # DOWNLOAD
-            # =====================================
+            # -----------------------------------------
 
             with download_col:
 
@@ -1145,18 +1293,10 @@ else:
 
                             file_url,
 
-                            timeout=20
-
+                            timeout=30
                         )
 
-
-                        if (
-
-                            file_response.status_code
-
-                            == 200
-
-                        ):
+                        if file_response.status_code == 200:
 
                             st.download_button(
 
@@ -1171,18 +1311,11 @@ else:
                                     "content-type",
 
                                     "application/octet-stream"
-
                                 ),
 
-                                key=(
-
-                                    f"download_"
-                                    f"{document_id}"
-
-                                ),
+                                key=f"download_{document_id}",
 
                                 use_container_width=True
-
                             )
 
                         else:
@@ -1193,17 +1326,10 @@ else:
 
                                 disabled=True,
 
-                                key=(
-
-                                    f"download_error_"
-                                    f"{document_id}"
-
-                                ),
+                                key=f"download_error_{document_id}",
 
                                 use_container_width=True
-
                             )
-
 
                     except Exception:
 
@@ -1213,15 +1339,9 @@ else:
 
                             disabled=True,
 
-                            key=(
-
-                                f"download_exception_"
-                                f"{document_id}"
-
-                            ),
+                            key=f"download_exception_{document_id}",
 
                             use_container_width=True
-
                         )
 
                 else:
@@ -1232,21 +1352,14 @@ else:
 
                         disabled=True,
 
-                        key=(
-
-                            f"download_old_"
-                            f"{document_id}"
-
-                        ),
+                        key=f"download_old_{document_id}",
 
                         use_container_width=True
-
                     )
 
-
-            # =====================================
+            # -----------------------------------------
             # DELETE
-            # =====================================
+            # -----------------------------------------
 
             with delete_col:
 
@@ -1254,17 +1367,10 @@ else:
 
                     "Delete",
 
-                    key=(
-
-                        f"delete_"
-                        f"{document_id}"
-
-                    ),
+                    key=f"delete_{document_id}",
 
                     use_container_width=True
-
                 )
-
 
                 if delete_button:
 
@@ -1272,22 +1378,14 @@ else:
 
                         delete_response = requests.delete(
 
-                            f"{API_URL}"
-                            f"/documents/"
-                            f"{document_id}",
+                            api_url(
+                                f"/documents/{document_id}"
+                            ),
 
-                            timeout=20
-
+                            timeout=30
                         )
 
-
-                        if (
-
-                            delete_response.status_code
-
-                            == 200
-
-                        ):
+                        if delete_response.status_code == 200:
 
                             st.success(
                                 "Document deleted."
@@ -1295,13 +1393,13 @@ else:
 
                             st.rerun()
 
-
                         else:
 
                             st.error(
-                                delete_response.text
+                                get_error_message(
+                                    delete_response
+                                )
                             )
-
 
                     except Exception as e:
 
@@ -1309,10 +1407,9 @@ else:
                             f"Delete failed: {e}"
                         )
 
-
-            # =====================================
+            # -----------------------------------------
             # DOCUMENT DETAILS
-            # =====================================
+            # -----------------------------------------
 
             with st.expander(
                 "View document details"
@@ -1322,39 +1419,24 @@ else:
 
                     detail_response = requests.get(
 
-                        f"{API_URL}"
-                        f"/documents/"
-                        f"{document_id}",
+                        api_url(
+                            f"/documents/{document_id}"
+                        ),
 
-                        timeout=10
-
+                        timeout=30
                     )
 
+                    if detail_response.status_code == 200:
 
-                    if (
-
-                        detail_response.status_code
-
-                        == 200
-
-                    ):
-
-                        details = (
-                            detail_response.json()
-                        )
-
-
-                        # =================================
-                        # EXTRACTED INFORMATION
-                        # =================================
+                        details = detail_response.json()
 
                         st.subheader(
                             "Extracted Information"
                         )
 
-
-                        detail_col1, detail_col2 = st.columns(2)
-
+                        detail_col1, detail_col2 = st.columns(
+                            2
+                        )
 
                         with detail_col1:
 
@@ -1367,13 +1449,9 @@ else:
                                 details.get(
                                     "document_number"
                                 )
-
                                 or
-
                                 "Not detected"
-
                             )
-
 
                             st.write(
                                 "**Holder Name**"
@@ -1384,13 +1462,9 @@ else:
                                 details.get(
                                     "holder_name"
                                 )
-
                                 or
-
                                 "Not detected"
-
                             )
-
 
                             st.write(
                                 "**Date of Birth**"
@@ -1401,13 +1475,9 @@ else:
                                 details.get(
                                     "date_of_birth"
                                 )
-
                                 or
-
                                 "Not detected"
-
                             )
-
 
                         with detail_col2:
 
@@ -1420,13 +1490,9 @@ else:
                                 details.get(
                                     "issue_date"
                                 )
-
                                 or
-
                                 "Not detected"
-
                             )
-
 
                             st.write(
                                 "**Expiry Date**"
@@ -1437,13 +1503,9 @@ else:
                                 details.get(
                                     "expiry_date"
                                 )
-
                                 or
-
                                 "Not detected"
-
                             )
-
 
                             st.write(
                                 "**Renewal Status**"
@@ -1453,27 +1515,18 @@ else:
 
                                 f"{status_icon(status)} "
                                 f"{status_label(status)}"
-
                             )
 
-
-                        # =================================
-                        # OCR TEXT
-                        # =================================
-
                         st.divider()
-
 
                         st.subheader(
                             "OCR Extracted Text"
                         )
 
-
                         detail_text = details.get(
                             "extracted_text",
                             ""
                         )
-
 
                         if detail_text:
 
@@ -1485,13 +1538,7 @@ else:
 
                                 height=250,
 
-                                key=(
-
-                                    f"details_ocr_"
-                                    f"{document_id}"
-
-                                )
-
+                                key=f"details_ocr_{document_id}"
                             )
 
                         else:
@@ -1500,13 +1547,13 @@ else:
                                 "No OCR text available."
                             )
 
-
                     else:
 
                         st.error(
-                            "Could not load document details."
+                            get_error_message(
+                                detail_response
+                            )
                         )
-
 
                 except Exception as e:
 
@@ -1516,50 +1563,66 @@ else:
 
 
 # =========================================================
-# FOOTER
-# =========================================================
-
-# ==========================================
 # PRIVACY FIREWALL
-# ==========================================
+# =========================================================
 
 st.divider()
 
-st.header("Privacy Firewall")
+st.header(
+    "Privacy Firewall"
+)
 
 st.caption(
-    "Check what sensitive information your document contains "
-    "before sharing it."
+    "Check what sensitive information your document "
+    "contains before sharing it."
 )
+
 
 if documents:
 
     document_options = {
-        document.get("id"): document.get(
-            "filename", "Unknown document"
-        )
+
+        document.get("id"):
+            document.get(
+                "filename",
+                "Unknown document"
+            )
+
         for document in documents
     }
 
     selected_document_id = st.selectbox(
+
         "Select a document to analyze",
-        options=list(document_options.keys()),
-        format_func=lambda x: document_options[x],
+
+        options=list(
+            document_options.keys()
+        ),
+
+        format_func=lambda x:
+            document_options[x],
+
         key="privacy_document_selector"
     )
 
     if st.button(
+
         "Run Privacy Check",
+
         type="primary",
-        use_container_width=False,
+
         key="run_privacy_check"
     ):
 
         try:
 
             detail_response = requests.get(
-                f"{API_URL}/documents/{selected_document_id}",
-                timeout=10
+
+                api_url(
+                    f"/documents/{selected_document_id}"
+                ),
+
+                timeout=30
             )
 
             if detail_response.status_code != 200:
@@ -1573,42 +1636,66 @@ if documents:
                 details = detail_response.json()
 
                 fields = {
-                    "document_number": details.get(
-                        "document_number"
-                    ),
-                    "holder_name": details.get(
-                        "holder_name"
-                    ),
-                    "date_of_birth": details.get(
-                        "date_of_birth"
-                    ),
-                    "issue_date": details.get(
-                        "issue_date"
-                    ),
-                    "expiry_date": details.get(
-                        "expiry_date"
-                    ),
-                    "nationality": details.get(
-                        "nationality"
-                    )
+
+                    "document_number":
+                        details.get(
+                            "document_number"
+                        ),
+
+                    "holder_name":
+                        details.get(
+                            "holder_name"
+                        ),
+
+                    "date_of_birth":
+                        details.get(
+                            "date_of_birth"
+                        ),
+
+                    "issue_date":
+                        details.get(
+                            "issue_date"
+                        ),
+
+                    "expiry_date":
+                        details.get(
+                            "expiry_date"
+                        ),
+
+                    "nationality":
+                        details.get(
+                            "nationality"
+                        )
                 }
 
                 fields = {
+
                     key: value
+
                     for key, value in fields.items()
+
                     if value
                 }
 
                 privacy_response = requests.post(
-                    f"{API_URL}/privacy-check",
-                    json={"fields": fields},
-                    timeout=10
+
+                    api_url(
+                        "/privacy-check"
+                    ),
+
+                    json={
+                        "fields": fields
+                    },
+
+                    timeout=30
                 )
 
                 if privacy_response.status_code != 200:
 
                     st.error(
-                        "Privacy analysis failed."
+                        get_error_message(
+                            privacy_response
+                        )
                     )
 
                 else:
@@ -1627,13 +1714,6 @@ if documents:
                         selected_document_id
                     ]
 
-                    # Clear an older generated share whenever
-                    # a new privacy check is performed.
-                    st.session_state.pop(
-                        "secure_share_data",
-                        None
-                    )
-
                     st.session_state.pop(
                         "active_share",
                         None
@@ -1648,9 +1728,9 @@ if documents:
             )
 
 
-# ==========================================
+# =========================================================
 # DISPLAY PRIVACY RESULT
-# ==========================================
+# =========================================================
 
 if "privacy_result" in st.session_state:
 
@@ -1692,11 +1772,9 @@ if "privacy_result" in st.session_state:
         0
     )
 
-    # ------------------------------------------
-    # Summary metrics
-    # ------------------------------------------
-
-    privacy_col1, privacy_col2, privacy_col3 = st.columns(3)
+    privacy_col1, privacy_col2, privacy_col3 = st.columns(
+        3
+    )
 
     with privacy_col1:
 
@@ -1721,13 +1799,10 @@ if "privacy_result" in st.session_state:
 
     st.divider()
 
-    # ------------------------------------------
-    # Privacy warning
-    # ------------------------------------------
-
     if highly_sensitive_count > 0:
 
         st.error(
+
             f"⚠️ This document contains "
             f"{highly_sensitive_count} highly sensitive field(s). "
             "Review them before sharing."
@@ -1736,6 +1811,7 @@ if "privacy_result" in st.session_state:
     elif sensitive_count > 0:
 
         st.warning(
+
             f"⚠️ This document contains "
             f"{sensitive_count} sensitive field(s). "
             "Review the information before sharing."
@@ -1747,16 +1823,16 @@ if "privacy_result" in st.session_state:
             "No sensitive information was detected."
         )
 
-    # ------------------------------------------
-    # Field-level analysis
-    # ------------------------------------------
-
-    st.subheader("Field-Level Privacy Analysis")
+    st.subheader(
+        "Field-Level Privacy Analysis"
+    )
 
     privacy_fields = result.get(
         "fields",
         {}
     )
+
+    selected_share_fields = []
 
     if privacy_fields:
 
@@ -1786,6 +1862,7 @@ if "privacy_result" in st.session_state:
             if level == "HIGHLY_SENSITIVE":
 
                 st.error(
+
                     f"🔴 **{readable_name}**  \n"
                     f"Value: `{value}`  \n"
                     f"Privacy Level: **Highly Sensitive**  \n"
@@ -1795,6 +1872,7 @@ if "privacy_result" in st.session_state:
             elif level == "SENSITIVE":
 
                 st.warning(
+
                     f"🟠 **{readable_name}**  \n"
                     f"Value: `{value}`  \n"
                     f"Privacy Level: **Sensitive**  \n"
@@ -1804,6 +1882,7 @@ if "privacy_result" in st.session_state:
             else:
 
                 st.success(
+
                     f"🟢 **{readable_name}**  \n"
                     f"Value: `{value}`  \n"
                     f"Privacy Level: **Public**  \n"
@@ -1811,20 +1890,20 @@ if "privacy_result" in st.session_state:
                     f"**{'Yes' if share_allowed else 'No'}**"
                 )
 
-        # ==========================================
+        # =================================================
         # CONTROLLED SHARING
-        # ==========================================
+        # =================================================
 
         st.divider()
 
-        st.subheader("Controlled Sharing")
+        st.subheader(
+            "Controlled Sharing"
+        )
 
         st.caption(
             "Choose exactly which fields you want to share. "
             "Sensitive information is disabled by default."
         )
-
-        selected_share_fields = []
 
         for field_name, field_info in privacy_fields.items():
 
@@ -1853,121 +1932,124 @@ if "privacy_result" in st.session_state:
             if level == "HIGHLY_SENSITIVE":
 
                 share = st.checkbox(
-                    f"🔴 {readable_name} — Highly Sensitive",
-                    value=False,
-                    key=checkbox_key
-                )
 
-                st.caption(
-                    "Highly sensitive information. "
-                    "Disabled by default."
+                    f"🔴 {readable_name} — Highly Sensitive",
+
+                    value=False,
+
+                    key=checkbox_key
                 )
 
             elif level == "SENSITIVE":
 
                 share = st.checkbox(
-                    f"🟠 {readable_name} — Sensitive",
-                    value=False,
-                    key=checkbox_key
-                )
 
-                st.caption(
-                    "Sensitive information. "
-                    "Review before sharing."
+                    f"🟠 {readable_name} — Sensitive",
+
+                    value=False,
+
+                    key=checkbox_key
                 )
 
             else:
 
                 share = st.checkbox(
-                    f"🟢 {readable_name} — Public",
-                    value=True,
-                    key=checkbox_key
-                )
 
-                st.caption(
-                    "Low-sensitivity information."
+                    f"🟢 {readable_name} — Public",
+
+                    value=True,
+
+                    key=checkbox_key
                 )
 
             if share:
 
                 selected_share_fields.append({
-                    "field": readable_name,
-                    "value": value,
-                    "level": level
+
+                    "field":
+                        readable_name,
+
+                    "value":
+                        value,
+
+                    "level":
+                        level
                 })
 
-        # ==========================================
+        # =================================================
         # SHARE PREVIEW
-        # ==========================================
+        # =================================================
 
         st.divider()
 
-        st.subheader("Share Preview")
+        st.subheader(
+            "Share Preview"
+        )
 
         if selected_share_fields:
 
             st.success(
-                f"{len(selected_share_fields)} field(s) "
-                "selected for sharing."
+
+                f"{len(selected_share_fields)} "
+                "field(s) selected for sharing."
             )
 
             for item in selected_share_fields:
 
                 st.markdown(
+
                     f"**{item['field']}**  \n"
                     f"Value: `{item['value']}`  \n"
                     f"Privacy Level: **{item['level']}**"
                 )
 
-            if st.button(
-                "Generate Secure Share",
-                type="primary",
-                key="generate_secure_share",
-                use_container_width=False
-            ):
-
-                st.session_state[
-                    "secure_share_data"
-                ] = selected_share_fields
-
-                st.success(
-                    "Secure share package generated."
-                )
-
         else:
 
             st.info(
-                "No fields selected. "
-                "Select the information you want to share."
+                "No fields selected."
             )
 
-        # ==========================================
+        # =================================================
         # SECURE SHARE LINK
-        # ==========================================
+        # =================================================
 
         st.divider()
 
-        st.subheader("Secure Share Link")
+        st.subheader(
+            "Secure Share Link"
+        )
 
         st.caption(
-            "Generate a temporary link containing only the fields you selected above."
+            "Generate a temporary link containing only "
+            "the fields you selected above."
         )
 
         expiry_hours = st.selectbox(
+
             "Link expires after",
+
             [1, 6, 24, 72],
+
             index=2,
-            format_func=lambda hours: (
-                f"{hours} hour" if hours == 1 else f"{hours} hours"
-            ),
+
+            format_func=lambda hours:
+                (
+                    f"{hours} hour"
+                    if hours == 1
+                    else f"{hours} hours"
+                ),
+
             key=f"share_expiry_{privacy_document_id}"
         )
 
         generate_share = st.button(
+
             "Generate Secure Share Link",
+
             type="primary",
+
             key=f"generate_share_link_{privacy_document_id}",
-            use_container_width=False,
+
             disabled=not selected_share_fields
         )
 
@@ -1976,18 +2058,35 @@ if "privacy_result" in st.session_state:
             try:
 
                 share_response = requests.post(
-                    f"{API_URL}/shares",
+
+                    api_url(
+                        "/shares"
+                    ),
+
                     json={
-                        "document_id": int(privacy_document_id),
-                        "fields": selected_share_fields,
-                        "expires_hours": int(expiry_hours)
+
+                        "document_id":
+                            int(
+                                privacy_document_id
+                            ),
+
+                        "fields":
+                            selected_share_fields,
+
+                        "expires_hours":
+                            int(
+                                expiry_hours
+                            )
                     },
-                    timeout=15
+
+                    timeout=30
                 )
 
                 if share_response.status_code == 200:
 
-                    share_result = share_response.json()
+                    share_result = (
+                        share_response.json()
+                    )
 
                     st.session_state[
                         "active_share"
@@ -2000,19 +2099,23 @@ if "privacy_result" in st.session_state:
                 else:
 
                     st.error(
-                        f"Could not generate share link: "
-                        f"{share_response.text}"
+
+                        "Could not generate share link: "
+                        +
+                        get_error_message(
+                            share_response
+                        )
                     )
 
             except Exception as e:
 
                 st.error(
-                    f"Could not connect to the sharing service: {e}"
+                    f"Could not connect to sharing service: {e}"
                 )
 
-        # ------------------------------------------
-        # DISPLAY ACTIVE SHARE
-        # ------------------------------------------
+        # =================================================
+        # ACTIVE SHARE
+        # =================================================
 
         active_share = st.session_state.get(
             "active_share"
@@ -2020,8 +2123,11 @@ if "privacy_result" in st.session_state:
 
         if active_share:
 
+            st.divider()
+
             st.success(
-                "Only the selected fields are available through this link."
+                "Only the selected fields are available "
+                "through this link."
             )
 
             share_url = active_share.get(
@@ -2034,47 +2140,50 @@ if "privacy_result" in st.session_state:
                 ""
             )
 
-            st.text_input(
-                "Share link",
-                value=share_url,
-                key="share_link_display"
-            )
+            if share_url:
 
-            st.caption(
-                f"Link expires at: {expires_at}"
-            )
+                st.text_input(
 
-            link_col1, link_col2 = st.columns(2)
+                    "Share link",
 
-            with link_col1:
+                    value=share_url,
 
-                if share_url:
-
-                    st.link_button(
-                        "Open Share Link",
-                        share_url,
-                        use_container_width=True
-                    )
-
-            with link_col2:
-
-                revoke_share = st.button(
-                    "Revoke Access",
-                    key="revoke_share_link",
-                    use_container_width=True
+                    key="share_link_display"
                 )
 
-                if revoke_share:
+                st.link_button(
 
-                    token = active_share.get(
-                        "token"
-                    )
+                    "Open Share Link",
+
+                    share_url
+                )
+
+            if expires_at:
+
+                st.caption(
+                    f"Link expires at: {expires_at}"
+                )
+
+            token = active_share.get(
+                "token"
+            )
+
+            if token:
+
+                if st.button(
+                    "Revoke Access",
+                    key="revoke_share_link"
+                ):
 
                     try:
 
                         revoke_response = requests.delete(
-                            f"{API_URL}/shares/{token}",
-                            timeout=10
+
+                            api_url(
+                                f"/shares/{token}"
+                            ),
+
+                            timeout=30
                         )
 
                         if revoke_response.status_code == 200:
@@ -2093,36 +2202,28 @@ if "privacy_result" in st.session_state:
                         else:
 
                             st.error(
-                                f"Could not revoke access: "
-                                f"{revoke_response.text}"
+                                get_error_message(
+                                    revoke_response
+                                )
                             )
 
                     except Exception as e:
 
                         st.error(
-                            f"Could not connect to the sharing service: {e}"
+                            f"Could not revoke access: {e}"
                         )
-
-        st.caption(
-            "LifePass Privacy Firewall ensures that unselected fields are never included in the share package."
-        )
 
     else:
 
         st.info(
-            "No extractable fields were detected for this document."
+            "No extractable fields were detected "
+            "for this document."
         )
 
-elif not documents:
 
-    st.info(
-        "Upload a document first to use the Privacy Firewall."
-    )
-
-
-# ==========================================
+# =========================================================
 # FOOTER
-# ==========================================
+# =========================================================
 
 st.divider()
 
