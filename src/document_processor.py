@@ -1,5 +1,6 @@
 import os
 import io
+
 import fitz
 import pytesseract
 
@@ -10,32 +11,76 @@ from PIL import Image
 # Tesseract Configuration
 # ==========================================
 
-# Windows:
-# Use a locally installed Tesseract executable if available.
+def configure_tesseract():
+    """
+    Configure Tesseract OCR depending on the operating system.
 
-if os.name == "nt":
+    Windows:
+        Look for a locally installed Tesseract executable.
 
-    windows_tesseract_paths = [
-        r"C:\Program Files\Tesseract-OCR\tesseract.exe",
-        r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
-        r"D:\projects\tesseract.exe",
-    ]
+    Linux / Render:
+        Use the Tesseract executable installed through
+        the Dockerfile and available in PATH.
+    """
 
-    for path in windows_tesseract_paths:
+    # --------------------------------------
+    # Windows
+    # --------------------------------------
 
-        if os.path.exists(path):
+    if os.name == "nt":
 
-            pytesseract.pytesseract.tesseract_cmd = path
-            break
+        windows_tesseract_paths = [
+
+            r"C:\Program Files\Tesseract-OCR\tesseract.exe",
+
+            r"C:\Program Files (x86)\Tesseract-OCR\tesseract.exe",
+
+            r"D:\projects\tesseract.exe",
+        ]
+
+        for path in windows_tesseract_paths:
+
+            if os.path.exists(path):
+
+                pytesseract.pytesseract.tesseract_cmd = path
+
+                print(
+                    "Tesseract configured:",
+                    path
+                )
+
+                return
+
+        # If Tesseract is already available through PATH,
+        # don't manually configure a path.
+
+        print(
+            "Tesseract executable not found in "
+            "standard Windows locations. "
+            "Trying system PATH."
+        )
+
+    # --------------------------------------
+    # Linux / Render
+    # --------------------------------------
+
+    else:
+
+        # Render installs Tesseract through Dockerfile:
+        #
+        # apt-get install -y --no-install-recommends tesseract-ocr
+        #
+        # Therefore pytesseract should automatically
+        # use "tesseract" from PATH.
+
+        print(
+            "Linux detected. "
+            "Using Tesseract from system PATH."
+        )
 
 
-# Linux / Render:
-# Tesseract is installed by Dockerfile using:
-#
-# apt-get install -y --no-install-recommends tesseract-ocr
-#
-# Therefore Linux will use the tesseract executable
-# available in PATH.
+# Configure Tesseract when this module loads
+configure_tesseract()
 
 
 # ==========================================
@@ -48,8 +93,11 @@ def extract_text_from_image(image):
     """
 
     text = pytesseract.image_to_string(
+
         image,
+
         lang="tam+eng",
+
         config="--psm 6"
     )
 
@@ -63,49 +111,64 @@ def extract_text_from_image(image):
 def extract_text_from_pdf(pdf_path):
     """
     Extract text from both normal and scanned PDFs.
+
+    For normal PDFs:
+        PyMuPDF extracts the existing text.
+
+    For scanned PDFs:
+        Each page is rendered as an image and
+        passed through Tesseract OCR.
     """
 
     document = fitz.open(pdf_path)
 
     extracted_text = ""
 
-    for page in document:
+    try:
 
-        # ----------------------------------
-        # Try extracting existing PDF text
-        # ----------------------------------
+        for page in document:
 
-        text = page.get_text()
+            # ----------------------------------
+            # Try extracting existing PDF text
+            # ----------------------------------
 
-        if text.strip():
+            text = page.get_text()
 
-            extracted_text += text + "\n"
+            if text.strip():
 
-        else:
+                extracted_text += (
+                    text + "\n"
+                )
 
-            # ------------------------------
-            # Scanned PDF → render as image
-            # ------------------------------
+            else:
 
-            pix = page.get_pixmap(
-                matrix=fitz.Matrix(2, 2)
-            )
+                # ------------------------------
+                # Scanned PDF → render as image
+                # ------------------------------
 
-            image_bytes = pix.tobytes("png")
+                pix = page.get_pixmap(
+                    matrix=fitz.Matrix(2, 2)
+                )
 
-            image = Image.open(
-                io.BytesIO(image_bytes)
-            )
+                image_bytes = pix.tobytes(
+                    "png"
+                )
 
-            ocr_text = extract_text_from_image(
-                image
-            )
+                image = Image.open(
+                    io.BytesIO(image_bytes)
+                )
 
-            extracted_text += (
-                ocr_text + "\n"
-            )
+                ocr_text = extract_text_from_image(
+                    image
+                )
 
-    document.close()
+                extracted_text += (
+                    ocr_text + "\n"
+                )
+
+    finally:
+
+        document.close()
 
     return extracted_text
 
@@ -116,7 +179,7 @@ def extract_text_from_pdf(pdf_path):
 
 def extract_text_from_file(file_path):
     """
-    Automatically process JPG, PNG or PDF.
+    Automatically process JPG, JPEG, PNG or PDF.
     """
 
     extension = os.path.splitext(
@@ -137,9 +200,15 @@ def extract_text_from_file(file_path):
             file_path
         )
 
-        return extract_text_from_image(
-            image
-        )
+        try:
+
+            return extract_text_from_image(
+                image
+            )
+
+        finally:
+
+            image.close()
 
     # --------------------------------------
     # PDF
