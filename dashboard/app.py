@@ -1,4 +1,3 @@
-```python
 import os
 from urllib.parse import urlparse, urlunparse
 
@@ -2240,4 +2239,3 @@ st.divider()
 st.caption(
     "LifePass • Secure Document & Renewal Management"
 )
-```

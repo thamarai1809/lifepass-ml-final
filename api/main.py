@@ -1,4 +1,3 @@
-```python
 import os
 import io
 import uuid
@@ -1221,4 +1220,3 @@ def revoke_secure_share(
         "message":
             "Share access revoked successfully."
     }
-```
