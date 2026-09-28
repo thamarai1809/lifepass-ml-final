@@ -1,4 +1,7 @@
+```python
 import os
+from urllib.parse import urlparse, urlunparse
+
 import requests
 import streamlit as st
 
@@ -6,10 +9,6 @@ import streamlit as st
 # =========================================================
 # CONFIGURATION
 # =========================================================
-
-# Production API is the default.
-# This means the dashboard will work even if API_URL
-# is not manually configured on Render.
 
 API_URL = os.getenv(
     "API_URL",
@@ -199,20 +198,14 @@ st.markdown(
 
 
 # =========================================================
-# API HELPER FUNCTIONS
+# API HELPERS
 # =========================================================
 
 def api_url(endpoint):
-    """
-    Build a clean API URL.
-    """
     return f"{API_URL}/{endpoint.lstrip('/')}"
 
 
 def parse_json_response(response):
-    """
-    Safely parse JSON responses.
-    """
     try:
         return response.json()
     except Exception:
@@ -220,11 +213,6 @@ def parse_json_response(response):
 
 
 def get_error_message(response):
-    """
-    Return a useful error even if Render returns HTML
-    instead of JSON.
-    """
-
     data = parse_json_response(response)
 
     if isinstance(data, dict):
@@ -239,20 +227,84 @@ def get_error_message(response):
 
     if text:
 
-        if text.startswith("<!DOCTYPE") or text.startswith("<html"):
+        if (
+            text.startswith("<!DOCTYPE")
+            or text.startswith("<html")
+            or "<title>502</title>" in text
+        ):
             return (
                 f"Server returned HTTP {response.status_code}. "
-                "The frontend/API connection timed out or "
-                "the upstream service returned an HTML error page."
+                "The Render service or upstream API returned "
+                "an HTML error page."
             )
 
-        return text[:1000]
+        return text[:2000]
 
     return (
         f"API request failed with HTTP "
         f"{response.status_code}."
     )
 
+
+# =========================================================
+# IMPORTANT:
+# Convert localhost share URLs into the public API URL
+# =========================================================
+
+def normalize_share_url(share_url):
+    """
+    The current API may return:
+
+        http://127.0.0.1:8000/share/TOKEN
+
+    or:
+
+        http://localhost:8000/share/TOKEN
+
+    That URL is useless to another user when the API is
+    deployed on Render.
+
+    Replace only the scheme + host while preserving the
+    /share/{token} path.
+    """
+
+    if not share_url:
+        return ""
+
+    try:
+
+        parsed = urlparse(share_url)
+
+        # If the API returned a relative URL
+        if not parsed.scheme or not parsed.netloc:
+
+            if share_url.startswith("/"):
+                return api_url(share_url)
+
+            return api_url("/" + share_url)
+
+        public_api = urlparse(API_URL)
+
+        normalized = urlunparse(
+            (
+                public_api.scheme,
+                public_api.netloc,
+                parsed.path,
+                parsed.params,
+                parsed.query,
+                parsed.fragment
+            )
+        )
+
+        return normalized
+
+    except Exception:
+        return share_url
+
+
+# =========================================================
+# DOCUMENT API
+# =========================================================
 
 def get_documents():
 
@@ -265,9 +317,7 @@ def get_documents():
 
         if response.status_code == 200:
 
-            data = parse_json_response(
-                response
-            )
+            data = parse_json_response(response)
 
             if isinstance(data, dict):
 
@@ -336,17 +386,11 @@ def get_days_remaining(document):
 def status_label(status):
 
     labels = {
-
         "valid": "Valid",
-
         "upcoming": "Upcoming",
-
         "due_soon": "Due Soon",
-
         "critical": "Critical",
-
         "expired": "Expired",
-
         "unknown": "Unknown"
     }
 
@@ -359,17 +403,11 @@ def status_label(status):
 def status_icon(status):
 
     icons = {
-
         "valid": "🟢",
-
         "upcoming": "🔵",
-
         "due_soon": "🟡",
-
         "critical": "🟠",
-
         "expired": "🔴",
-
         "unknown": "⚪"
     }
 
@@ -377,6 +415,32 @@ def status_icon(status):
         status,
         "⚪"
     )
+
+
+# =========================================================
+# SESSION STATE
+# =========================================================
+
+if "upload_result" not in st.session_state:
+    st.session_state["upload_result"] = None
+
+if "privacy_result" not in st.session_state:
+    st.session_state["privacy_result"] = None
+
+if "privacy_document_id" not in st.session_state:
+    st.session_state["privacy_document_id"] = None
+
+if "privacy_document_name" not in st.session_state:
+    st.session_state["privacy_document_name"] = None
+
+if "active_share" not in st.session_state:
+    st.session_state["active_share"] = None
+
+if "download_data" not in st.session_state:
+    st.session_state["download_data"] = {}
+
+if "download_error" not in st.session_state:
+    st.session_state["download_error"] = {}
 
 
 # =========================================================
@@ -397,10 +461,9 @@ st.sidebar.subheader(
     "Upload Document"
 )
 
+
 uploaded_file = st.sidebar.file_uploader(
-
     "Choose a PDF, JPG or PNG",
-
     type=[
         "pdf",
         "jpg",
@@ -417,11 +480,8 @@ if uploaded_file is not None:
     )
 
     process_button = st.sidebar.button(
-
         "Process Document",
-
         type="primary",
-
         use_container_width=True
     )
 
@@ -430,7 +490,6 @@ if uploaded_file is not None:
         file_bytes = uploaded_file.getvalue()
 
         files = {
-
             "file": (
                 uploaded_file.name,
                 file_bytes,
@@ -442,22 +501,14 @@ if uploaded_file is not None:
             "/predict-document"
         )
 
-        # -------------------------------------------------
-        # Upload status
-        # -------------------------------------------------
-
-        st.info(
-            "Uploading document to LifePass API..."
-        )
-
         progress_message = st.empty()
 
         try:
 
             with st.spinner(
                 "Analyzing your document. "
-                "OCR and document processing may take up to "
-                "a couple of minutes..."
+                "OCR and document processing may take "
+                "up to a couple of minutes..."
             ):
 
                 progress_message.info(
@@ -465,21 +516,12 @@ if uploaded_file is not None:
                 )
 
                 response = requests.post(
-
                     endpoint,
-
                     files=files,
-
-                    # Production API was observed taking
-                    # approximately 61 seconds.
                     timeout=300
                 )
 
             progress_message.empty()
-
-            # -------------------------------------------------
-            # SUCCESS
-            # -------------------------------------------------
 
             if response.status_code == 200:
 
@@ -502,21 +544,21 @@ if uploaded_file is not None:
                         "upload_result"
                     ] = result
 
+                    st.session_state[
+                        "download_data"
+                    ] = {}
+
+                    st.session_state[
+                        "download_error"
+                    ] = {}
+
                     st.success(
                         "Document processed successfully!"
                     )
 
                     st.rerun()
 
-            # -------------------------------------------------
-            # API ERROR
-            # -------------------------------------------------
-
             else:
-
-                error_message = get_error_message(
-                    response
-                )
 
                 st.error(
                     f"Document processing failed "
@@ -524,7 +566,7 @@ if uploaded_file is not None:
                 )
 
                 st.code(
-                    error_message
+                    get_error_message(response)
                 )
 
         except requests.exceptions.Timeout:
@@ -533,8 +575,7 @@ if uploaded_file is not None:
 
             st.error(
                 "The document processing request timed out. "
-                "The API may still be processing the document. "
-                "Please check the API directly before retrying."
+                "The API may still be processing the document."
             )
 
         except requests.exceptions.ConnectionError as e:
@@ -574,7 +615,7 @@ if uploaded_file is not None:
 
 
 # =========================================================
-# MAIN HEADER
+# HEADER
 # =========================================================
 
 st.title(
@@ -654,14 +695,13 @@ for document in documents:
 # LATEST UPLOAD RESULT
 # =========================================================
 
-if "upload_result" in st.session_state:
+result = st.session_state.get(
+    "upload_result"
+)
 
-    result = st.session_state[
-        "upload_result"
-    ]
+if result:
 
     st.success(
-
         f"✓ {result.get('filename', 'Document')} "
         "has been processed and saved."
     )
@@ -759,10 +799,6 @@ if "upload_result" in st.session_state:
                     f"{days_remaining}"
                 )
 
-        # ---------------------------------------------
-        # Extracted fields
-        # ---------------------------------------------
-
         fields = result.get(
             "fields",
             {}
@@ -782,10 +818,6 @@ if "upload_result" in st.session_state:
                     f"**{key.replace('_', ' ').title()}:** "
                     f"{value}"
                 )
-
-        # ---------------------------------------------
-        # OCR text
-        # ---------------------------------------------
 
         extracted_text = result.get(
             "extracted_text",
@@ -816,9 +848,7 @@ st.header(
     "Overview"
 )
 
-total = len(
-    documents
-)
+total = len(documents)
 
 valid = sum(
     d.get("_status") == "valid"
@@ -846,57 +876,25 @@ expired = sum(
 )
 
 
-col1, col2, col3, col4, col5, col6 = st.columns(
-    6
-)
-
+col1, col2, col3, col4, col5, col6 = st.columns(6)
 
 with col1:
-
-    st.metric(
-        "Documents",
-        total
-    )
-
+    st.metric("Documents", total)
 
 with col2:
-
-    st.metric(
-        "Valid",
-        valid
-    )
-
+    st.metric("Valid", valid)
 
 with col3:
-
-    st.metric(
-        "Upcoming",
-        upcoming
-    )
-
+    st.metric("Upcoming", upcoming)
 
 with col4:
-
-    st.metric(
-        "Due Soon",
-        due_soon
-    )
-
+    st.metric("Due Soon", due_soon)
 
 with col5:
-
-    st.metric(
-        "Critical",
-        critical
-    )
-
+    st.metric("Critical", critical)
 
 with col6:
-
-    st.metric(
-        "Expired",
-        expired
-    )
+    st.metric("Expired", expired)
 
 
 # =========================================================
@@ -904,13 +902,9 @@ with col6:
 # =========================================================
 
 alerts = [
-
     document
-
     for document in documents
-
     if document.get("_status")
-
     in [
         "expired",
         "critical",
@@ -961,7 +955,6 @@ if alerts:
                 )
 
             st.error(
-
                 f"🔴 **Document Expired**\n\n"
                 f"{message}\n\n"
                 f"Expiry date: **{expiry}**"
@@ -970,7 +963,6 @@ if alerts:
         elif status == "critical":
 
             st.warning(
-
                 f"🟠 **Renewal Required Soon**\n\n"
                 f"**{filename}** expires "
                 f"in **{days} days**.\n\n"
@@ -980,7 +972,6 @@ if alerts:
         else:
 
             st.warning(
-
                 f"🟡 **Renewal Due Soon**\n\n"
                 f"**{filename}** expires "
                 f"in **{days} days**.\n\n"
@@ -996,7 +987,6 @@ st.header(
     "My Documents"
 )
 
-
 search_col, type_col, status_col = st.columns(
     [2, 1, 1]
 )
@@ -1005,9 +995,7 @@ search_col, type_col, status_col = st.columns(
 with search_col:
 
     search_query = st.text_input(
-
         "Search documents",
-
         placeholder="Search by filename..."
     )
 
@@ -1015,22 +1003,17 @@ with search_col:
 with type_col:
 
     document_types = sorted(
-
         set(
-
             d.get(
                 "document_type",
                 "Unknown"
             )
-
             for d in documents
         )
     )
 
     selected_type = st.selectbox(
-
         "Document type",
-
         ["All"] + document_types
     )
 
@@ -1038,22 +1021,17 @@ with type_col:
 with status_col:
 
     statuses = sorted(
-
         set(
-
             d.get(
                 "_status",
                 "unknown"
             )
-
             for d in documents
         )
     )
 
     selected_status = st.selectbox(
-
         "Status",
-
         ["All"] + statuses
     )
 
@@ -1068,13 +1046,9 @@ filtered_documents = documents
 if search_query:
 
     filtered_documents = [
-
         d
-
         for d in filtered_documents
-
         if search_query.lower()
-
         in d.get(
             "filename",
             ""
@@ -1085,11 +1059,8 @@ if search_query:
 if selected_type != "All":
 
     filtered_documents = [
-
         d
-
         for d in filtered_documents
-
         if d.get(
             "document_type"
         ) == selected_type
@@ -1099,11 +1070,8 @@ if selected_type != "All":
 if selected_status != "All":
 
     filtered_documents = [
-
         d
-
         for d in filtered_documents
-
         if d.get(
             "_status"
         ) == selected_status
@@ -1165,10 +1133,6 @@ else:
             "_days_remaining"
         )
 
-        file_path = document.get(
-            "file_path"
-        )
-
         with st.container(
             border=True
         ):
@@ -1181,9 +1145,7 @@ else:
                 f"{str(document_type).title()} document"
             )
 
-            info1, info2, info3, info4 = st.columns(
-                4
-            )
+            info1, info2, info3, info4 = st.columns(4)
 
             with info1:
 
@@ -1234,7 +1196,6 @@ else:
                 )
 
                 st.write(
-
                     f"{status_icon(status)} "
                     f"**{status_label(status)}**"
                 )
@@ -1249,126 +1210,171 @@ else:
                 f"/documents/{document_id}/file"
             )
 
-            # -----------------------------------------
+
+            # =================================================
             # VIEW
-            # -----------------------------------------
+            # =================================================
 
             with view_col:
 
-                if file_path:
+                st.link_button(
+                    "View",
+                    file_url,
+                    use_container_width=True
+                )
 
-                    st.link_button(
 
-                        "View",
-
-                        file_url,
-
-                        use_container_width=True
-                    )
-
-                else:
-
-                    st.button(
-
-                        "View",
-
-                        disabled=True,
-
-                        key=f"view_{document_id}",
-
-                        use_container_width=True
-                    )
-
-            # -----------------------------------------
+            # =================================================
             # DOWNLOAD
-            # -----------------------------------------
+            #
+            # IMPORTANT:
+            # Do NOT check file_path here.
+            #
+            # The database path is an internal API concern.
+            # The frontend only needs the document ID and
+            # public API endpoint.
+            # =================================================
 
             with download_col:
 
-                if file_path:
+                download_key = (
+                    f"download_data_{document_id}"
+                )
 
-                    try:
+                error_key = (
+                    f"download_error_{document_id}"
+                )
 
-                        file_response = requests.get(
+                if download_key not in st.session_state[
+                    "download_data"
+                ]:
 
-                            file_url,
-
-                            timeout=30
-                        )
-
-                        if file_response.status_code == 200:
-
-                            st.download_button(
-
-                                "Download",
-
-                                data=file_response.content,
-
-                                file_name=filename,
-
-                                mime=file_response.headers.get(
-
-                                    "content-type",
-
-                                    "application/octet-stream"
-                                ),
-
-                                key=f"download_{document_id}",
-
-                                use_container_width=True
-                            )
-
-                        else:
-
-                            st.button(
-
-                                "Download",
-
-                                disabled=True,
-
-                                key=f"download_error_{document_id}",
-
-                                use_container_width=True
-                            )
-
-                    except Exception:
-
-                        st.button(
-
-                            "Download",
-
-                            disabled=True,
-
-                            key=f"download_exception_{document_id}",
-
-                            use_container_width=True
-                        )
-
-                else:
-
-                    st.button(
-
+                    prepare_download = st.button(
                         "Download",
-
-                        disabled=True,
-
-                        key=f"download_old_{document_id}",
-
+                        key=f"prepare_download_{document_id}",
                         use_container_width=True
                     )
 
-            # -----------------------------------------
+                    if prepare_download:
+
+                        try:
+
+                            with st.spinner(
+                                "Preparing document..."
+                            ):
+
+                                file_response = requests.get(
+                                    file_url,
+                                    timeout=60
+                                )
+
+                            if (
+                                file_response.status_code
+                                == 200
+                            ):
+
+                                content_type = (
+                                    file_response.headers.get(
+                                        "content-type",
+                                        "application/octet-stream"
+                                    )
+                                )
+
+                                st.session_state[
+                                    "download_data"
+                                ][download_key] = {
+                                    "data":
+                                        file_response.content,
+
+                                    "mime":
+                                        content_type
+                                }
+
+                                st.session_state[
+                                    "download_error"
+                                ].pop(
+                                    error_key,
+                                    None
+                                )
+
+                                st.rerun()
+
+                            else:
+
+                                error = get_error_message(
+                                    file_response
+                                )
+
+                                st.session_state[
+                                    "download_error"
+                                ][error_key] = (
+                                    f"Download failed "
+                                    f"(HTTP "
+                                    f"{file_response.status_code}): "
+                                    f"{error}"
+                                )
+
+                                st.rerun()
+
+                        except requests.exceptions.Timeout:
+
+                            st.session_state[
+                                "download_error"
+                            ][error_key] = (
+                                "The document download request "
+                                "timed out."
+                            )
+
+                            st.rerun()
+
+                        except Exception as e:
+
+                            st.session_state[
+                                "download_error"
+                            ][error_key] = (
+                                f"Download failed: {e}"
+                            )
+
+                            st.rerun()
+
+                else:
+
+                    download_info = (
+                        st.session_state[
+                            "download_data"
+                        ][download_key]
+                    )
+
+                    st.download_button(
+                        "Download",
+                        data=download_info["data"],
+                        file_name=filename,
+                        mime=download_info["mime"],
+                        key=f"actual_download_{document_id}",
+                        use_container_width=True
+                    )
+
+
+                if error_key in st.session_state[
+                    "download_error"
+                ]:
+
+                    st.error(
+                        st.session_state[
+                            "download_error"
+                        ][error_key]
+                    )
+
+
+            # =================================================
             # DELETE
-            # -----------------------------------------
+            # =================================================
 
             with delete_col:
 
                 delete_button = st.button(
-
                     "Delete",
-
                     key=f"delete_{document_id}",
-
                     use_container_width=True
                 )
 
@@ -1377,15 +1383,27 @@ else:
                     try:
 
                         delete_response = requests.delete(
-
                             api_url(
                                 f"/documents/{document_id}"
                             ),
-
                             timeout=30
                         )
 
                         if delete_response.status_code == 200:
+
+                            st.session_state[
+                                "download_data"
+                            ].pop(
+                                f"download_data_{document_id}",
+                                None
+                            )
+
+                            st.session_state[
+                                "download_error"
+                            ].pop(
+                                f"download_error_{document_id}",
+                                None
+                            )
 
                             st.success(
                                 "Document deleted."
@@ -1407,9 +1425,10 @@ else:
                             f"Delete failed: {e}"
                         )
 
-            # -----------------------------------------
+
+            # =================================================
             # DOCUMENT DETAILS
-            # -----------------------------------------
+            # =================================================
 
             with st.expander(
                 "View document details"
@@ -1418,25 +1437,23 @@ else:
                 try:
 
                     detail_response = requests.get(
-
                         api_url(
                             f"/documents/{document_id}"
                         ),
-
                         timeout=30
                     )
 
                     if detail_response.status_code == 200:
 
-                        details = detail_response.json()
+                        details = (
+                            detail_response.json()
+                        )
 
                         st.subheader(
                             "Extracted Information"
                         )
 
-                        detail_col1, detail_col2 = st.columns(
-                            2
-                        )
+                        detail_col1, detail_col2 = st.columns(2)
 
                         with detail_col1:
 
@@ -1445,7 +1462,6 @@ else:
                             )
 
                             st.write(
-
                                 details.get(
                                     "document_number"
                                 )
@@ -1458,7 +1474,6 @@ else:
                             )
 
                             st.write(
-
                                 details.get(
                                     "holder_name"
                                 )
@@ -1471,7 +1486,6 @@ else:
                             )
 
                             st.write(
-
                                 details.get(
                                     "date_of_birth"
                                 )
@@ -1486,7 +1500,6 @@ else:
                             )
 
                             st.write(
-
                                 details.get(
                                     "issue_date"
                                 )
@@ -1499,7 +1512,6 @@ else:
                             )
 
                             st.write(
-
                                 details.get(
                                     "expiry_date"
                                 )
@@ -1512,7 +1524,6 @@ else:
                             )
 
                             st.write(
-
                                 f"{status_icon(status)} "
                                 f"{status_label(status)}"
                             )
@@ -1531,13 +1542,9 @@ else:
                         if detail_text:
 
                             st.text_area(
-
                                 "Document text",
-
                                 detail_text,
-
                                 height=250,
-
                                 key=f"details_ocr_{document_id}"
                             )
 
@@ -1581,47 +1588,37 @@ st.caption(
 if documents:
 
     document_options = {
-
         document.get("id"):
             document.get(
                 "filename",
                 "Unknown document"
             )
-
         for document in documents
     }
 
     selected_document_id = st.selectbox(
-
         "Select a document to analyze",
-
         options=list(
             document_options.keys()
         ),
-
         format_func=lambda x:
             document_options[x],
-
         key="privacy_document_selector"
     )
 
+
     if st.button(
-
         "Run Privacy Check",
-
         type="primary",
-
         key="run_privacy_check"
     ):
 
         try:
 
             detail_response = requests.get(
-
                 api_url(
                     f"/documents/{selected_document_id}"
                 ),
-
                 timeout=30
             )
 
@@ -1633,10 +1630,11 @@ if documents:
 
             else:
 
-                details = detail_response.json()
+                details = (
+                    detail_response.json()
+                )
 
                 fields = {
-
                     "document_number":
                         details.get(
                             "document_number"
@@ -1669,24 +1667,18 @@ if documents:
                 }
 
                 fields = {
-
                     key: value
-
                     for key, value in fields.items()
-
                     if value
                 }
 
                 privacy_response = requests.post(
-
                     api_url(
                         "/privacy-check"
                     ),
-
                     json={
                         "fields": fields
                     },
-
                     timeout=30
                 )
 
@@ -1732,11 +1724,12 @@ if documents:
 # DISPLAY PRIVACY RESULT
 # =========================================================
 
-if "privacy_result" in st.session_state:
+privacy_result = st.session_state.get(
+    "privacy_result"
+)
 
-    result = st.session_state[
-        "privacy_result"
-    ]
+
+if privacy_result:
 
     document_name = st.session_state.get(
         "privacy_document_name",
@@ -1752,7 +1745,7 @@ if "privacy_result" in st.session_state:
         f"Privacy Analysis — {document_name}"
     )
 
-    summary = result.get(
+    summary = privacy_result.get(
         "summary",
         {}
     )
@@ -1772,9 +1765,8 @@ if "privacy_result" in st.session_state:
         0
     )
 
-    privacy_col1, privacy_col2, privacy_col3 = st.columns(
-        3
-    )
+
+    privacy_col1, privacy_col2, privacy_col3 = st.columns(3)
 
     with privacy_col1:
 
@@ -1797,12 +1789,13 @@ if "privacy_result" in st.session_state:
             highly_sensitive_count
         )
 
+
     st.divider()
+
 
     if highly_sensitive_count > 0:
 
         st.error(
-
             f"⚠️ This document contains "
             f"{highly_sensitive_count} highly sensitive field(s). "
             "Review them before sharing."
@@ -1811,7 +1804,6 @@ if "privacy_result" in st.session_state:
     elif sensitive_count > 0:
 
         st.warning(
-
             f"⚠️ This document contains "
             f"{sensitive_count} sensitive field(s). "
             "Review the information before sharing."
@@ -1823,16 +1815,18 @@ if "privacy_result" in st.session_state:
             "No sensitive information was detected."
         )
 
+
     st.subheader(
         "Field-Level Privacy Analysis"
     )
 
-    privacy_fields = result.get(
+    privacy_fields = privacy_result.get(
         "fields",
         {}
     )
 
     selected_share_fields = []
+
 
     if privacy_fields:
 
@@ -1859,10 +1853,10 @@ if "privacy_result" in st.session_state:
                 .title()
             )
 
+
             if level == "HIGHLY_SENSITIVE":
 
                 st.error(
-
                     f"🔴 **{readable_name}**  \n"
                     f"Value: `{value}`  \n"
                     f"Privacy Level: **Highly Sensitive**  \n"
@@ -1872,7 +1866,6 @@ if "privacy_result" in st.session_state:
             elif level == "SENSITIVE":
 
                 st.warning(
-
                     f"🟠 **{readable_name}**  \n"
                     f"Value: `{value}`  \n"
                     f"Privacy Level: **Sensitive**  \n"
@@ -1882,13 +1875,13 @@ if "privacy_result" in st.session_state:
             else:
 
                 st.success(
-
                     f"🟢 **{readable_name}**  \n"
                     f"Value: `{value}`  \n"
                     f"Privacy Level: **Public**  \n"
                     f"Share by default: "
                     f"**{'Yes' if share_allowed else 'No'}**"
                 )
+
 
         # =================================================
         # CONTROLLED SHARING
@@ -1904,6 +1897,7 @@ if "privacy_result" in st.session_state:
             "Choose exactly which fields you want to share. "
             "Sensitive information is disabled by default."
         )
+
 
         for field_name, field_info in privacy_fields.items():
 
@@ -1929,52 +1923,47 @@ if "privacy_result" in st.session_state:
                 f"{field_name}"
             )
 
+
             if level == "HIGHLY_SENSITIVE":
 
                 share = st.checkbox(
-
                     f"🔴 {readable_name} — Highly Sensitive",
-
                     value=False,
-
                     key=checkbox_key
                 )
 
             elif level == "SENSITIVE":
 
                 share = st.checkbox(
-
                     f"🟠 {readable_name} — Sensitive",
-
                     value=False,
-
                     key=checkbox_key
                 )
 
             else:
 
                 share = st.checkbox(
-
                     f"🟢 {readable_name} — Public",
-
                     value=True,
-
                     key=checkbox_key
                 )
 
+
             if share:
 
-                selected_share_fields.append({
+                selected_share_fields.append(
+                    {
+                        "field":
+                            readable_name,
 
-                    "field":
-                        readable_name,
+                        "value":
+                            value,
 
-                    "value":
-                        value,
+                        "level":
+                            level
+                    }
+                )
 
-                    "level":
-                        level
-                })
 
         # =================================================
         # SHARE PREVIEW
@@ -1986,10 +1975,10 @@ if "privacy_result" in st.session_state:
             "Share Preview"
         )
 
+
         if selected_share_fields:
 
             st.success(
-
                 f"{len(selected_share_fields)} "
                 "field(s) selected for sharing."
             )
@@ -1997,7 +1986,6 @@ if "privacy_result" in st.session_state:
             for item in selected_share_fields:
 
                 st.markdown(
-
                     f"**{item['field']}**  \n"
                     f"Value: `{item['value']}`  \n"
                     f"Privacy Level: **{item['level']}**"
@@ -2008,6 +1996,7 @@ if "privacy_result" in st.session_state:
             st.info(
                 "No fields selected."
             )
+
 
         # =================================================
         # SECURE SHARE LINK
@@ -2024,47 +2013,38 @@ if "privacy_result" in st.session_state:
             "the fields you selected above."
         )
 
+
         expiry_hours = st.selectbox(
-
             "Link expires after",
-
             [1, 6, 24, 72],
-
             index=2,
-
             format_func=lambda hours:
                 (
                     f"{hours} hour"
                     if hours == 1
                     else f"{hours} hours"
                 ),
-
             key=f"share_expiry_{privacy_document_id}"
         )
 
+
         generate_share = st.button(
-
             "Generate Secure Share Link",
-
             type="primary",
-
             key=f"generate_share_link_{privacy_document_id}",
-
             disabled=not selected_share_fields
         )
+
 
         if generate_share:
 
             try:
 
                 share_response = requests.post(
-
                     api_url(
                         "/shares"
                     ),
-
                     json={
-
                         "document_id":
                             int(
                                 privacy_document_id
@@ -2078,14 +2058,33 @@ if "privacy_result" in st.session_state:
                                 expiry_hours
                             )
                     },
-
                     timeout=30
                 )
+
 
                 if share_response.status_code == 200:
 
                     share_result = (
                         share_response.json()
+                    )
+
+                    # -------------------------------------
+                    # FIX:
+                    # Replace localhost share URL with
+                    # the deployed Render API URL.
+                    # -------------------------------------
+
+                    original_share_url = (
+                        share_result.get(
+                            "share_url",
+                            ""
+                        )
+                    )
+
+                    share_result[
+                        "share_url"
+                    ] = normalize_share_url(
+                        original_share_url
                     )
 
                     st.session_state[
@@ -2099,7 +2098,6 @@ if "privacy_result" in st.session_state:
                 else:
 
                     st.error(
-
                         "Could not generate share link: "
                         +
                         get_error_message(
@@ -2113,6 +2111,7 @@ if "privacy_result" in st.session_state:
                     f"Could not connect to sharing service: {e}"
                 )
 
+
         # =================================================
         # ACTIVE SHARE
         # =================================================
@@ -2120,6 +2119,7 @@ if "privacy_result" in st.session_state:
         active_share = st.session_state.get(
             "active_share"
         )
+
 
         if active_share:
 
@@ -2130,33 +2130,40 @@ if "privacy_result" in st.session_state:
                 "through this link."
             )
 
-            share_url = active_share.get(
-                "share_url",
-                ""
+
+            share_url = normalize_share_url(
+                active_share.get(
+                    "share_url",
+                    ""
+                )
             )
+
 
             expires_at = active_share.get(
                 "expires_at",
                 ""
             )
 
+
             if share_url:
 
                 st.text_input(
-
                     "Share link",
-
                     value=share_url,
-
                     key="share_link_display"
                 )
 
                 st.link_button(
-
                     "Open Share Link",
-
-                    share_url
+                    share_url,
+                    use_container_width=True
                 )
+
+                st.caption(
+                    "This is the public Render link. "
+                    "The link contains only the fields you selected."
+                )
+
 
             if expires_at:
 
@@ -2164,27 +2171,29 @@ if "privacy_result" in st.session_state:
                     f"Link expires at: {expires_at}"
                 )
 
+
             token = active_share.get(
                 "token"
             )
+
 
             if token:
 
                 if st.button(
                     "Revoke Access",
-                    key="revoke_share_link"
+                    key="revoke_share_link",
+                    use_container_width=True
                 ):
 
                     try:
 
                         revoke_response = requests.delete(
-
                             api_url(
                                 f"/shares/{token}"
                             ),
-
                             timeout=30
                         )
+
 
                         if revoke_response.status_code == 200:
 
@@ -2213,6 +2222,7 @@ if "privacy_result" in st.session_state:
                             f"Could not revoke access: {e}"
                         )
 
+
     else:
 
         st.info(
@@ -2230,3 +2240,4 @@ st.divider()
 st.caption(
     "LifePass • Secure Document & Renewal Management"
 )
+```
