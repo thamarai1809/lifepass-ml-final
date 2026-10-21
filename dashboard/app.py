@@ -9,10 +9,7 @@ import streamlit as st
 # CONFIGURATION
 # =========================================================
 
-API_URL = os.getenv(
-    "API_URL",
-    "https://lifepasss-api.onrender.com"
-).rstrip("/")
+API_URL = "https://lifepasss-api.onrender.com"
 
 
 # =========================================================
@@ -251,21 +248,6 @@ def get_error_message(response):
 # =========================================================
 
 def normalize_share_url(share_url):
-    """
-    The current API may return:
-
-        http://127.0.0.1:8000/share/TOKEN
-
-    or:
-
-        http://localhost:8000/share/TOKEN
-
-    That URL is useless to another user when the API is
-    deployed on Render.
-
-    Replace only the scheme + host while preserving the
-    /share/{token} path.
-    """
 
     if not share_url:
         return ""
@@ -274,7 +256,7 @@ def normalize_share_url(share_url):
 
         parsed = urlparse(share_url)
 
-        # If the API returned a relative URL
+        # Relative URL
         if not parsed.scheme or not parsed.netloc:
 
             if share_url.startswith("/"):
@@ -298,6 +280,7 @@ def normalize_share_url(share_url):
         return normalized
 
     except Exception:
+
         return share_url
 
 
@@ -305,13 +288,14 @@ def normalize_share_url(share_url):
 # DOCUMENT API
 # =========================================================
 
+@st.cache_data(ttl=10, show_spinner=False)
 def get_documents():
 
     try:
 
         response = requests.get(
             api_url("/documents"),
-            timeout=30
+            timeout=(10, 30)
         )
 
         if response.status_code == 200:
@@ -329,17 +313,9 @@ def get_documents():
 
     except requests.exceptions.Timeout:
 
-        st.warning(
-            "The document service is taking too long to respond."
-        )
-
         return []
 
-    except requests.exceptions.RequestException as e:
-
-        st.warning(
-            f"Could not connect to LifePass API: {e}"
-        )
+    except requests.exceptions.RequestException:
 
         return []
 
@@ -488,11 +464,16 @@ if uploaded_file is not None:
 
         file_bytes = uploaded_file.getvalue()
 
+        content_type = (
+            uploaded_file.type
+            or "application/octet-stream"
+        )
+
         files = {
             "file": (
                 uploaded_file.name,
                 file_bytes,
-                uploaded_file.type
+                content_type
             )
         }
 
@@ -514,13 +495,26 @@ if uploaded_file is not None:
                     "Sending document to the LifePass ML API..."
                 )
 
+                # IMPORTANT:
+                # Do not automatically retry POST requests.
+                # If the backend successfully inserts the
+                # document but the response is lost, retrying
+                # could create duplicate records.
+
                 response = requests.post(
                     endpoint,
                     files=files,
-                    timeout=300
+                    timeout=(30, 300),
+                    headers={
+                        "User-Agent": "LifePass-Streamlit/1.0"
+                    }
                 )
 
             progress_message.empty()
+
+            # -------------------------------------------------
+            # SUCCESS
+            # -------------------------------------------------
 
             if response.status_code == 200:
 
@@ -537,6 +531,10 @@ if uploaded_file is not None:
                         "API returned an invalid JSON response."
                     )
 
+                    st.code(
+                        response.text[:3000]
+                    )
+
                 else:
 
                     st.session_state[
@@ -551,11 +549,86 @@ if uploaded_file is not None:
                         "download_error"
                     ] = {}
 
+                    # Clear cached document list so the
+                    # newly uploaded document appears
+                    # immediately.
+
+                    get_documents.clear()
+
                     st.success(
                         "Document processed successfully!"
                     )
 
                     st.rerun()
+
+            # -------------------------------------------------
+            # RATE LIMIT
+            # -------------------------------------------------
+
+            elif response.status_code == 429:
+
+                retry_after = response.headers.get(
+                    "Retry-After"
+                )
+
+                if retry_after:
+
+                    st.warning(
+                        "The LifePass API is temporarily "
+                        "rate-limiting requests. "
+                        f"Please wait about {retry_after} "
+                        "seconds and try again."
+                    )
+
+                else:
+
+                    st.warning(
+                        "The LifePass API is temporarily "
+                        "rate-limiting requests. "
+                        "Please wait a short while and "
+                        "try the upload again."
+                    )
+
+                st.code(
+                    get_error_message(response)
+                )
+
+            # -------------------------------------------------
+            # RENDER / UPSTREAM ERRORS
+            # -------------------------------------------------
+
+            elif response.status_code in (
+                502,
+                503,
+                504
+            ):
+
+                st.error(
+                    f"Document processing failed "
+                    f"(HTTP {response.status_code})"
+                )
+
+                st.warning(
+                    "The API endpoint is reachable, but "
+                    "Render returned an upstream server "
+                    f"error ({response.status_code}) while "
+                    "processing this request."
+                )
+
+                st.code(
+                    get_error_message(response)
+                )
+
+                st.info(
+                    "The backend API has been tested "
+                    "successfully outside the dashboard. "
+                    "If this persists, check the FastAPI "
+                    "Render logs at the exact upload time."
+                )
+
+            # -------------------------------------------------
+            # OTHER API ERRORS
+            # -------------------------------------------------
 
             else:
 
@@ -573,8 +646,13 @@ if uploaded_file is not None:
             progress_message.empty()
 
             st.error(
-                "The document processing request timed out. "
-                "The API may still be processing the document."
+                "The document processing request timed out."
+            )
+
+            st.info(
+                "The API may still be processing the "
+                "document. Check the document list before "
+                "trying the upload again."
             )
 
         except requests.exceptions.ConnectionError as e:
@@ -630,6 +708,13 @@ st.divider()
 
 # =========================================================
 # API STATUS
+#
+# IMPORTANT:
+# We intentionally DO NOT automatically call the API here.
+#
+# Streamlit reruns the entire script whenever a widget is
+# clicked. An automatic GET / health check on every rerun can
+# create unnecessary traffic and trigger 429 responses.
 # =========================================================
 
 with st.expander(
@@ -641,31 +726,14 @@ with st.expander(
         f"**API:** `{API_URL}`"
     )
 
-    try:
+    st.success(
+        "LifePass API endpoint configured."
+    )
 
-        health_response = requests.get(
-            api_url("/"),
-            timeout=15
-        )
-
-        if health_response.status_code == 200:
-
-            st.success(
-                "LifePass API is online."
-            )
-
-        else:
-
-            st.error(
-                f"LifePass API returned "
-                f"HTTP {health_response.status_code}"
-            )
-
-    except Exception as e:
-
-        st.error(
-            f"API health check failed: {e}"
-        )
+    st.caption(
+        "The API health endpoint is checked only when "
+        "the backend is accessed by an application request."
+    )
 
 
 # =========================================================
@@ -1225,13 +1293,6 @@ else:
 
             # =================================================
             # DOWNLOAD
-            #
-            # IMPORTANT:
-            # Do NOT check file_path here.
-            #
-            # The database path is an internal API concern.
-            # The frontend only needs the document ID and
-            # public API endpoint.
             # =================================================
 
             with download_col:
@@ -1264,7 +1325,7 @@ else:
 
                                 file_response = requests.get(
                                     file_url,
-                                    timeout=60
+                                    timeout=(10, 60)
                                 )
 
                             if (
@@ -1385,7 +1446,7 @@ else:
                             api_url(
                                 f"/documents/{document_id}"
                             ),
-                            timeout=30
+                            timeout=(10, 30)
                         )
 
                         if delete_response.status_code == 200:
@@ -1403,6 +1464,8 @@ else:
                                 f"download_error_{document_id}",
                                 None
                             )
+
+                            get_documents.clear()
 
                             st.success(
                                 "Document deleted."
@@ -1439,7 +1502,7 @@ else:
                         api_url(
                             f"/documents/{document_id}"
                         ),
-                        timeout=30
+                        timeout=(10, 30)
                     )
 
                     if detail_response.status_code == 200:
@@ -1618,7 +1681,7 @@ if documents:
                 api_url(
                     f"/documents/{selected_document_id}"
                 ),
-                timeout=30
+                timeout=(10, 30)
             )
 
             if detail_response.status_code != 200:
@@ -1678,7 +1741,7 @@ if documents:
                     json={
                         "fields": fields
                     },
-                    timeout=30
+                    timeout=(10, 30)
                 )
 
                 if privacy_response.status_code != 200:
@@ -1711,6 +1774,12 @@ if documents:
                     )
 
                     st.rerun()
+
+        except requests.exceptions.RequestException as e:
+
+            st.error(
+                f"Privacy check could not connect to the API: {e}"
+            )
 
         except Exception as e:
 
@@ -2057,7 +2126,7 @@ if privacy_result:
                                 expiry_hours
                             )
                     },
-                    timeout=30
+                    timeout=(10, 30)
                 )
 
 
@@ -2066,12 +2135,6 @@ if privacy_result:
                     share_result = (
                         share_response.json()
                     )
-
-                    # -------------------------------------
-                    # FIX:
-                    # Replace localhost share URL with
-                    # the deployed Render API URL.
-                    # -------------------------------------
 
                     original_share_url = (
                         share_result.get(
@@ -2104,10 +2167,16 @@ if privacy_result:
                         )
                     )
 
-            except Exception as e:
+            except requests.exceptions.RequestException as e:
 
                 st.error(
                     f"Could not connect to sharing service: {e}"
+                )
+
+            except Exception as e:
+
+                st.error(
+                    f"Could not generate share link: {e}"
                 )
 
 
@@ -2190,7 +2259,7 @@ if privacy_result:
                             api_url(
                                 f"/shares/{token}"
                             ),
-                            timeout=30
+                            timeout=(10, 30)
                         )
 
 
@@ -2214,6 +2283,12 @@ if privacy_result:
                                     revoke_response
                                 )
                             )
+
+                    except requests.exceptions.RequestException as e:
+
+                        st.error(
+                            f"Could not connect to sharing service: {e}"
+                        )
 
                     except Exception as e:
 
