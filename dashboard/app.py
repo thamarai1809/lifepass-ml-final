@@ -541,139 +541,112 @@ if uploaded_file is not None:
 
     if process_button:
 
+        # Clear the previous result before starting a new request so that
+        # a failed upload cannot leave an old result looking like the new one.
+        st.session_state["upload_result"] = None
+
         file_bytes = uploaded_file.getvalue()
 
-        files = {
-            "file": (
-                uploaded_file.name,
-                file_bytes,
-                uploaded_file.type
-            )
-        }
-
-        endpoint = api_url(
-            "/predict-document"
-        )
-
-        progress_message = st.empty()
-
-        try:
-
-            with st.spinner(
-                "Analyzing your document. "
-                "OCR and document processing may take "
-                "up to a couple of minutes..."
-            ):
-
-                progress_message.info(
-                    "Sending document to the LifePass ML API..."
+        if not file_bytes:
+            st.error("The selected file is empty. Choose the document again.")
+        else:
+            files = {
+                "file": (
+                    uploaded_file.name,
+                    file_bytes,
+                    uploaded_file.type or "application/octet-stream"
                 )
+            }
 
-                response = requests.post(
-                    endpoint,
-                    files=files,
-                    timeout=300
-                )
+            endpoint = api_url("/predict-document")
+            progress_message = st.empty()
 
-            progress_message.empty()
-
-            if response.status_code == 200:
-
-                result = parse_json_response(
-                    response
-                )
-
-                if not isinstance(
-                    result,
-                    dict
+            try:
+                with st.spinner(
+                    "Analyzing your document. OCR and document processing "
+                    "may take up to a couple of minutes..."
                 ):
-
-                    st.error(
-                        "API returned an invalid JSON response."
+                    progress_message.info(
+                        "Uploading the document to the LifePass ML API. "
+                        "Keep this page open until processing finishes."
                     )
 
+                    # Do not auto-retry POST requests: a retry could create
+                    # a duplicate document if the first request actually saved it.
+                    response = API_SESSION.post(
+                        endpoint,
+                        files=files,
+                        timeout=(20, 300)
+                    )
+
+                progress_message.empty()
+
+                if 200 <= response.status_code < 300:
+                    result = parse_json_response(response)
+
+                    if not isinstance(result, dict):
+                        st.error(
+                            "The API reported success but did not return a "
+                            "valid JSON result. Check the API logs."
+                        )
+                        st.code(response.text[:2000] or "(empty response)")
+                    elif not result.get("document_id"):
+                        # Show the response rather than silently returning to
+                        # the dashboard if the backend response is incomplete.
+                        st.session_state["upload_result"] = result
+                        st.warning(
+                            "The API returned a result, but it did not include "
+                            "a document ID. Review the response below and check "
+                            "the backend logs to confirm the document was saved."
+                        )
+                    else:
+                        st.session_state["upload_result"] = result
+                        st.session_state["download_data"] = {}
+                        st.session_state["download_error"] = {}
+                        st.success(
+                            f"Document processed successfully: "
+                            f"{result.get('filename', uploaded_file.name)}"
+                        )
+                        # Intentionally do not call st.rerun() here.
+                        # The script continues and renders upload_result below
+                        # during this same run, avoiding a blank/reset feeling.
                 else:
-
-                    st.session_state[
-                        "upload_result"
-                    ] = result
-
-                    st.session_state[
-                        "download_data"
-                    ] = {}
-
-                    st.session_state[
-                        "download_error"
-                    ] = {}
-
-                    st.success(
-                        "Document processed successfully!"
+                    st.error(
+                        f"Document processing failed (HTTP {response.status_code})."
                     )
+                    st.code(get_error_message(response))
 
-                    st.rerun()
+                    if response.status_code in (502, 503, 504):
+                        st.warning(
+                            "Do not repeatedly upload the same file yet. "
+                            "The backend may have processed it before the gateway "
+                            "returned an error. Check the API service logs in Render."
+                        )
 
-            else:
-
+            except requests.exceptions.Timeout:
+                progress_message.empty()
                 st.error(
-                    f"Document processing failed "
-                    f"(HTTP {response.status_code})"
+                    "The document processing request timed out. The API may "
+                    "still be processing the document. Check My Documents before "
+                    "retrying to avoid creating a duplicate."
                 )
 
-                st.code(
-                    get_error_message(response)
+            except requests.exceptions.ConnectionError as e:
+                progress_message.empty()
+                st.error("Could not connect to the LifePass API.")
+                st.code(str(e))
+
+            except requests.exceptions.RequestException as e:
+                progress_message.empty()
+                st.error(
+                    "An HTTP error occurred while contacting the LifePass API."
                 )
+                st.code(str(e))
 
-                if response.status_code in (502, 503, 504):
-                    st.warning(
-                        "Do not repeatedly upload the same file yet. "
-                        "Check the LifePass API service logs in Render first; "
-                        "the backend may have processed the request before "
-                        "the gateway returned an error."
-                    )
-
-        except requests.exceptions.Timeout:
-
-            progress_message.empty()
-
-            st.error(
-                "The document processing request timed out. "
-                "The API may still be processing the document."
-            )
-
-        except requests.exceptions.ConnectionError as e:
-
-            progress_message.empty()
-
-            st.error(
-                "Could not connect to the LifePass API."
-            )
-
-            st.code(
-                str(e)
-            )
-
-        except requests.exceptions.RequestException as e:
-
-            progress_message.empty()
-
-            st.error(
-                "An HTTP error occurred while contacting "
-                "the LifePass API."
-            )
-
-            st.code(
-                str(e)
-            )
-
-        except Exception as e:
-
-            progress_message.empty()
-
-            st.error(
-                "Unexpected dashboard error."
-            )
-
-            st.exception(e)
+            except Exception as e:
+                progress_message.empty()
+                st.error("Unexpected dashboard error.")
+                st.exception(e)
 
 
 # =========================================================
