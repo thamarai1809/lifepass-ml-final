@@ -158,7 +158,7 @@ def debug_version():
 # the default path relative to this file.
 # ============================================================
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 MODEL_PATH = Path(
     os.getenv(
