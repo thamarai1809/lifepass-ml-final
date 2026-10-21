@@ -3,8 +3,9 @@ import io
 import uuid
 import shutil
 import traceback
+import threading
+from pathlib import Path
 
-import fitz
 import joblib
 
 from fastapi import (
@@ -146,25 +147,88 @@ def debug_version():
 
 
 # ============================================================
-# Initialize Database
+# Database and ML model initialization
+# ============================================================
+#
+# Do not let a missing model file or a temporary database problem
+# crash the entire API process during import. The health endpoints
+# should remain available so Render can report useful diagnostics.
+#
+# On Render, configure LIFEPASS_MODEL_PATH if the model is not at
+# the default path relative to this file.
 # ============================================================
 
-create_tables()
-create_share_table()
+BASE_DIR = Path(__file__).resolve().parent
+
+MODEL_PATH = Path(
+    os.getenv(
+        "LIFEPASS_MODEL_PATH",
+        str(BASE_DIR / "models" / "lifepass_classifier.joblib")
+    )
+).expanduser()
+
+_model = None
+_model_load_error = None
+_model_lock = threading.Lock()
+
+_database_init_error = None
+
+try:
+    create_tables()
+    create_share_table()
+except Exception as exc:
+    _database_init_error = str(exc)
+    print("DATABASE INITIALIZATION FAILED:")
+    traceback.print_exc()
 
 
-# ============================================================
-# Load ML Model
-# ============================================================
+def get_model():
+    """Load the classifier once, on first use, and return clear API errors."""
+    global _model, _model_load_error
 
-MODEL_PATH = os.getenv(
-    "LIFEPASS_MODEL_PATH",
-    "models/lifepass_classifier.joblib"
-)
+    if _model is not None:
+        return _model
 
-model = joblib.load(
-    MODEL_PATH
-)
+    with _model_lock:
+        if _model is not None:
+            return _model
+
+        try:
+            if not MODEL_PATH.is_file():
+                raise FileNotFoundError(
+                    f"Model file not found at {MODEL_PATH}. "
+                    "Check that the model is committed/deployed and "
+                    "LIFEPASS_MODEL_PATH is correct."
+                )
+
+            _model = joblib.load(str(MODEL_PATH))
+            _model_load_error = None
+            print(f"ML model loaded successfully from: {MODEL_PATH}")
+            return _model
+
+        except Exception as exc:
+            _model_load_error = str(exc)
+            print(f"ML MODEL LOAD FAILED: {_model_load_error}")
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "The classification model is unavailable. "
+                    "Check the API Render logs and LIFEPASS_MODEL_PATH."
+                )
+            ) from exc
+
+
+def ensure_database_ready():
+    """Fail explicitly instead of returning an unhelpful proxy error."""
+    if _database_init_error:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The database could not be initialized. "
+                "Check the API Render logs for the database initialization error."
+            )
+        )
 
 
 # ============================================================
@@ -309,10 +373,25 @@ def home():
 
 @app.get("/health")
 def health():
-
+    # Lightweight liveness check: does not load the model or query the database.
     return {
-        "status": "healthy",
-        "service": "LifePass ML API"
+        "status": "ok",
+        "service": "LifePass ML API",
+        "version": app.version
+    }
+
+
+@app.get("/ready")
+def readiness():
+    # Diagnostics for deployment troubleshooting; avoids exposing stack traces.
+    return {
+        "status": "ready" if not _database_init_error else "degraded",
+        "database_initialized": _database_init_error is None,
+        "database_error": bool(_database_init_error),
+        "model_loaded": _model is not None,
+        "model_path": str(MODEL_PATH),
+        "model_error": bool(_model_load_error),
+        "upload_dir_exists": os.path.isdir(UPLOAD_DIR) if "UPLOAD_DIR" in globals() else False
     }
 
 
@@ -325,11 +404,28 @@ def predict(
     request: DocumentRequest
 ):
 
-    prediction = model.predict(
+    classifier = get_model()
+
+    if not hasattr(classifier, "predict"):
+        raise HTTPException(
+            status_code=503,
+            detail="The configured model does not support prediction."
+        )
+
+    if not hasattr(classifier, "predict_proba"):
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The configured model does not support predict_proba; "
+                "use a probability-capable classifier or update the API response."
+            )
+        )
+
+    prediction = classifier.predict(
         [request.text]
     )[0]
 
-    probabilities = model.predict_proba(
+    probabilities = classifier.predict_proba(
         [request.text]
     )[0]
 
@@ -355,7 +451,7 @@ def predict(
 # ============================================================
 
 @app.post("/predict-document")
-async def predict_document(
+def predict_document(
     file: UploadFile = File(...)
 ):
 
@@ -380,9 +476,16 @@ async def predict_document(
             )
         )
 
-    original_filename = os.path.basename(
-        file.filename
-    )
+    submitted_filename = (file.filename or "").replace("\\", "/")
+    original_filename = os.path.basename(submitted_filename).strip()
+
+    if not original_filename:
+        raise HTTPException(
+            status_code=400,
+            detail="The uploaded file must have a valid filename."
+        )
+
+    ensure_database_ready()
 
     unique_filename = (
         f"{uuid.uuid4().hex[:8]}_"
@@ -432,15 +535,28 @@ async def predict_document(
         # Save uploaded file
         # ----------------------------------------------------
 
-        with open(
-            file_path,
-            "wb"
-        ) as buffer:
+        # Stream the upload to disk with a hard size limit. Avoid loading
+        # the entire file into RAM, which can trigger worker restarts on Render.
+        max_upload_bytes = int(os.getenv("LIFEPASS_MAX_UPLOAD_MB", "15")) * 1024 * 1024
+        total_bytes = 0
 
-            shutil.copyfileobj(
-                file.file,
-                buffer
-            )
+        with open(file_path, "wb") as buffer:
+            while True:
+                chunk = file.file.read(1024 * 1024)
+                if not chunk:
+                    break
+
+                total_bytes += len(chunk)
+                if total_bytes > max_upload_bytes:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=(
+                            f"File is too large. Maximum allowed size is "
+                            f"{max_upload_bytes // (1024 * 1024)} MB."
+                        )
+                    )
+
+                buffer.write(chunk)
 
         print(
             "File saved:",
@@ -477,11 +593,21 @@ async def predict_document(
         # Classification
         # ----------------------------------------------------
 
-        prediction = model.predict(
+        classifier = get_model()
+
+        if not hasattr(classifier, "predict") or not hasattr(classifier, "predict_proba"):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "The configured model must support predict and predict_proba."
+                )
+            )
+
+        prediction = classifier.predict(
             [extracted_text]
         )[0]
 
-        probabilities = model.predict_proba(
+        probabilities = classifier.predict_proba(
             [extracted_text]
         )[0]
 
@@ -653,8 +779,11 @@ async def predict_document(
 
         raise HTTPException(
             status_code=500,
-            detail=str(e)
-        )
+            detail=(
+                "Document processing failed. Check the API Render logs "
+                "for the detailed traceback."
+            )
+        ) from e
 
 
 # ============================================================
@@ -684,11 +813,16 @@ def privacy_check(
             )
         )
 
-    result = analyze_privacy(
-        fields
-    )
-
-    return result
+    try:
+        result = analyze_privacy(fields)
+        return result
+    except Exception as exc:
+        print("PRIVACY CHECK FAILED:")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail="Privacy analysis failed. Check the API Render logs."
+        ) from exc
 
 
 # ============================================================
@@ -697,6 +831,7 @@ def privacy_check(
 
 @app.get("/documents")
 def documents():
+    ensure_database_ready()
 
     return {
         "documents":
@@ -714,6 +849,7 @@ def documents():
 def document_details(
     document_id: int
 ):
+    ensure_database_ready()
 
     document = get_document(
         document_id
@@ -739,6 +875,7 @@ def document_details(
 def document_file(
     document_id: int
 ):
+    ensure_database_ready()
 
     document = get_document(
         document_id
@@ -823,11 +960,7 @@ def document_file(
         media_type=media_type,
 
         headers={
-            "Content-Disposition":
-                (
-                    "inline; "
-                    f'filename="{document["filename"]}"'
-                )
+            "Content-Disposition": "inline"
         }
     )
 
@@ -842,6 +975,7 @@ def document_file(
 def download_document(
     document_id: int
 ):
+    ensure_database_ready()
 
     document = get_document(
         document_id
@@ -939,6 +1073,7 @@ def download_document(
 def remove_document(
     document_id: int
 ):
+    ensure_database_ready()
 
     # --------------------------------------------------------
     # Get database record before deleting it.
@@ -999,6 +1134,7 @@ def remove_document(
 def create_secure_share(
     request: ShareRequest
 ):
+    ensure_database_ready()
 
     # --------------------------------------------------------
     # Validate fields
